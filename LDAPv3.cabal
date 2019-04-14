@@ -1,0 +1,51 @@
+cabal-version:       2.2
+name:                LDAPv3
+version:             0.0.0.0
+
+synopsis:            Lightweight Directory Access Protocol (LDAP) version 3
+license:             GPL-2.0-or-later
+license-file:        LICENSE
+author:              Herbert Valerio Riedel
+maintainer:          hvr@gnu.org
+bug-reports:         https://github.com/hvr/LDAPv3/issues
+category:            Network
+description:
+-- TODO
+
+source-repository head
+  type:     git
+  location: https://github.com/hvr/LDAPv3.git
+
+common defaults
+  default-language:    Haskell2010
+  other-extensions:
+
+  build-depends:
+    , base          >=4.7 && <4.12
+    , binary
+    , bytestring
+    , text-short
+
+  ghc-options: -Wall
+
+-------------------------------------------------------------------------------
+
+library
+  import: defaults
+
+  hs-source-dirs: src
+  exposed-modules:
+      LDAPv3
+  other-modules:
+
+-------------------------------------------------------------------------------
+
+test-suite LDAPv3
+  import: defaults
+
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: main.hs
+
+  build-depends:
+    , LDAPv3
