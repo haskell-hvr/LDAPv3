@@ -1,10 +1,32 @@
+-- Copyright (c) 2019  Herbert Valerio Riedel <hvr@gnu.org>
+--
+--  This file is free software: you may copy, redistribute and/or modify it
+--  under the terms of the GNU General Public License as published by the
+--  Free Software Foundation, either version 2 of the License, or (at your
+--  option) any later version.
+--
+--  This file is distributed in the hope that it will be useful, but
+--  WITHOUT ANY WARRANTY; without even the implied warranty of
+--  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+--  General Public License for more details.
+--
+--  You should have received a copy of the GNU General Public License
+--  along with this program (see `LICENSE`).  If not, see
+--  <https://www.gnu.org/licenses/old-licenses/gpl-2.0.html>.
+
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE TypeOperators              #-}
+
 module LDAPv3 where
 
-import           Data.ByteString      (ByteString)
-import           Data.Int
-import           Data.List.NonEmpty   (NonEmpty (..))
-import qualified Data.Text.Short      as TS
-import           Data.Word
+import           Common
+import           Data.ASN1
+import           Data.ASN1.Prim
+
+import qualified Data.Binary    as Bin
 
 ----------------------------------------------------------------------------
 -- LDAPv3 protocol
@@ -41,8 +63,22 @@ LDAPMessage ::= SEQUENCE {
 data LDAPMessage = LDAPMessage
   { _LDAPMessage'messageID  :: MessageID
   , _LDAPMessage'protocolOp :: ProtocolOp
-  , _LDAPMessage'controls   :: Maybe Controls
+  , _LDAPMessage'controls   :: Maybe ('CONTEXTUAL 0 `IMPLICIT` Controls)
   } deriving Show
+
+instance Bin.Binary LDAPMessage where
+  put = void . toBinaryPut . asn1encode
+  get = toBinaryGet asn1decode
+
+instance ASN1 LDAPMessage where
+  asn1decode = with'SEQUENCE $
+    LDAPMessage <$> asn1decode <*> asn1decode <*> asn1decode
+
+  asn1encode (LDAPMessage v1 v2 v3)
+    = enc'SEQUENCE [ asn1encode v1
+                   , asn1encode v2
+                   , asn1encode v3
+                   ]
 
 {-
 
@@ -50,7 +86,7 @@ MessageID ::= INTEGER (0 ..  maxInt)
 
 -}
 newtype MessageID = MessageID Int32
-                  deriving (Show)
+                  deriving (Show,ASN1)
 
 -- @CHOICE@ type inlined in @LDAPMessage.protocolOp@
 data ProtocolOp
@@ -62,6 +98,28 @@ data ProtocolOp
   | ProtocolOp'searchResDone   SearchResultDone
   | ProtocolOp'searchResRef    SearchResultReference
   deriving Show
+
+instance ASN1 ProtocolOp where
+  asn1decode = with'CHOICE
+    [ ProtocolOp'bindRequest    <$> asn1decode
+    , ProtocolOp'bindResponse   <$> asn1decode
+    , ProtocolOp'unbindRequest  <$> asn1decode
+    , ProtocolOp'searchRequest  <$> asn1decode
+    , ProtocolOp'searchResEntry <$> asn1decode
+    , ProtocolOp'searchResDone  <$> asn1decode
+    , ProtocolOp'searchResRef   <$> asn1decode
+    -- TODO
+    ]
+
+  asn1encode = \case
+    ProtocolOp'bindRequest    v -> asn1encode v
+    ProtocolOp'bindResponse   v -> asn1encode v
+    ProtocolOp'unbindRequest  v -> asn1encode v
+    ProtocolOp'searchRequest  v -> asn1encode v
+    ProtocolOp'searchResEntry v -> asn1encode v
+    ProtocolOp'searchResDone  v -> asn1encode v
+    ProtocolOp'searchResRef   v -> asn1encode v
+
 
 ----------------------------------------------------------------------------
 
@@ -82,9 +140,17 @@ type Controls = [Control]
 
 data Control = Control
   { _Control'controlType  :: LDAPOID
-  , _Control'criticality  :: Maybe Bool
+  , _Control'criticality  :: Maybe Bool -- TODO: actually "DEFAULT FALSE"
   , _Control'controlValue :: Maybe OCTET_STRING
   } deriving Show
+
+instance ASN1 Control where
+  asn1decode = with'SEQUENCE $ Control <$> asn1decode <*> asn1decode <*> asn1decode
+  asn1encode (Control v1 v2 v3)
+    = enc'SEQUENCE [ asn1encode v1
+                   , asn1encode v2
+                   , asn1encode v3
+                   ]
 
 type LDAPOID = OCTET_STRING
 
@@ -105,6 +171,17 @@ data BindRequest = BindRequest
   , bindRequest'authentication :: AuthenticationChoice
   } deriving Show
 
+instance ASN1 BindRequest where
+  asn1decode = implicit (Application 0) $ with'SEQUENCE $
+    BindRequest <$> asn1decode <*> asn1decode <*> asn1decode
+
+  asn1encode (BindRequest v1 v2 v3)
+    = retag (Application 0) $
+      enc'SEQUENCE [ asn1encode v1
+                   , asn1encode v2
+                   , asn1encode v3
+                   ]
+
 ----------------------------------------------------------------------------
 
 {-
@@ -118,9 +195,19 @@ AuthenticationChoice ::= CHOICE {
 -}
 
 data AuthenticationChoice
-  = AuthenticationChoice'simple  OCTET_STRING
-  | AuthenticationChoice'sasl    SaslCredentials
+  = AuthenticationChoice'simple  ('CONTEXTUAL 0 `IMPLICIT` OCTET_STRING)
+  | AuthenticationChoice'sasl    ('CONTEXTUAL 3 `IMPLICIT` SaslCredentials)
   deriving Show
+
+instance ASN1 AuthenticationChoice where
+  asn1decode = with'CHOICE
+    [ AuthenticationChoice'simple <$> asn1decode
+    , AuthenticationChoice'sasl   <$> asn1decode
+    ]
+
+  asn1encode = \case
+    AuthenticationChoice'simple v -> asn1encode v
+    AuthenticationChoice'sasl   v -> asn1encode v
 
 {-
 
@@ -135,6 +222,14 @@ data SaslCredentials = SaslCredentials
   , _SaslCredentials'credentials :: Maybe OCTET_STRING
   } deriving Show
 
+instance ASN1 SaslCredentials where
+  asn1decode = with'SEQUENCE $ SaslCredentials <$> asn1decode <*> asn1decode
+
+  asn1encode (SaslCredentials v1 v2)
+    = enc'SEQUENCE [ asn1encode v1
+                   , asn1encode v2
+                   ]
+
 ----------------------------------------------------------------------------
 
 {-
@@ -147,8 +242,20 @@ BindResponse ::= [APPLICATION 1] SEQUENCE {
 
 data BindResponse = BindResponse
   { _BindResponse'LDAPResult      :: LDAPResult
-  , _BindResponse'serverSaslCreds :: Maybe OCTET_STRING
+  , _BindResponse'serverSaslCreds :: Maybe ('CONTEXTUAL 7 `IMPLICIT` OCTET_STRING)
   } deriving Show
+
+instance ASN1 BindResponse where
+  asn1decode = implicit (Application 1) $ with'SEQUENCE $ do
+    _BindResponse'LDAPResult      <- asn1decodeCompOf
+    _BindResponse'serverSaslCreds <- asn1decode
+    pure BindResponse{..}
+
+  asn1encode (BindResponse{..})
+    = retag (Application 1) $
+      enc'SEQUENCE [ asn1encodeCompOf _BindResponse'LDAPResult
+                   , asn1encode       _BindResponse'serverSaslCreds
+                   ]
 
 ----------------------------------------------------------------------------
 
@@ -160,6 +267,10 @@ UnbindRequest ::= [APPLICATION 2] NULL
 
 data UnbindRequest = UnbindRequest
   deriving Show
+
+instance ASN1 UnbindRequest where
+  asn1decode = implicit (Application 2) $ (UnbindRequest <$ dec'NULL)
+  asn1encode UnbindRequest = retag (Application 2) enc'NULL
 
 ----------------------------------------------------------------------------
 
@@ -202,11 +313,41 @@ data SearchRequest = SearchRequest
 
 type AttributeSelection = [LDAPString]
 
+instance ASN1 SearchRequest where
+  asn1decode = implicit (Application 3) $ with'SEQUENCE $ do
+    _SearchRequest'baseObject   <- asn1decode
+    _SearchRequest'scope        <- asn1decode
+    _SearchRequest'derefAliases <- asn1decode
+    _SearchRequest'sizeLimit    <- asn1decode
+    _SearchRequest'timeLimit    <- asn1decode
+    _SearchRequest'typesOnly    <- asn1decode
+    _SearchRequest'filter       <- asn1decode
+    _SearchRequest'attributes   <- asn1decode
+
+    pure SearchRequest{..}
+
+
+  asn1encode (SearchRequest v1 v2 v3 v4 v5 v6 v7 v8)
+    = retag (Application 3) $
+      enc'SEQUENCE [ asn1encode v1
+                   , asn1encode v2
+                   , asn1encode v3
+                   , asn1encode v4
+                   , asn1encode v5
+                   , asn1encode v6
+                   , asn1encode v7
+                   , asn1encode v8
+                   ]
+
 data Scope
   = Scope'baseObject
   | Scope'singleLevel
   | Scope'wholeSubtree
   deriving (Bounded,Enum,Show)
+
+instance ASN1 Scope where
+  asn1decode = dec'BoundedEnum
+  asn1encode = enc'BoundedEnum
 
 data DerefAliases
   = DerefAliases'neverDerefAliases
@@ -214,6 +355,10 @@ data DerefAliases
   | DerefAliases'derefFindingBaseObj
   | DerefAliases'derefAlways
   deriving (Bounded,Enum,Show)
+
+instance ASN1 DerefAliases where
+  asn1decode = dec'BoundedEnum
+  asn1encode = enc'BoundedEnum
 
 {-
 
@@ -246,17 +391,43 @@ AttributeValueAssertion ::= SEQUENCE {
 -}
 
 data Filter
-  = Filter'and             [Filter]
-  | Filter'or              [Filter]
-  | Filter'not             [Filter]
-  | Filter'equalityMatch   AttributeValueAssertion
-  | Filter'substrings      SubstringFilter
-  | Filter'greaterOrEqual  AttributeValueAssertion
-  | Filter'lessOrEqual     AttributeValueAssertion
-  | Filter'present         AttributeDescription
-  | Filter'approxMatch     AttributeValueAssertion
-  | Filter'extensibleMatch MatchingRuleAssertion
+  = Filter'and             ('CONTEXTUAL 0 `IMPLICIT` SET1 Filter)
+  | Filter'or              ('CONTEXTUAL 1 `IMPLICIT` SET1 Filter)
+  | Filter'not             ('CONTEXTUAL 2 `EXPLICIT` SET1 Filter)
+  | Filter'equalityMatch   ('CONTEXTUAL 3 `IMPLICIT` AttributeValueAssertion)
+  | Filter'substrings      ('CONTEXTUAL 4 `IMPLICIT` SubstringFilter)
+  | Filter'greaterOrEqual  ('CONTEXTUAL 5 `IMPLICIT` AttributeValueAssertion)
+  | Filter'lessOrEqual     ('CONTEXTUAL 6 `IMPLICIT` AttributeValueAssertion)
+  | Filter'present         ('CONTEXTUAL 7 `IMPLICIT` AttributeDescription)
+  | Filter'approxMatch     ('CONTEXTUAL 8 `IMPLICIT` AttributeValueAssertion)
+  | Filter'extensibleMatch ('CONTEXTUAL 9 `IMPLICIT` MatchingRuleAssertion)
   deriving Show
+
+instance ASN1 Filter where
+  asn1decode = with'CHOICE
+    [ Filter'and             <$> asn1decode
+    , Filter'or              <$> asn1decode
+    , Filter'not             <$> asn1decode
+    , Filter'equalityMatch   <$> asn1decode
+    , Filter'substrings      <$> asn1decode
+    , Filter'greaterOrEqual  <$> asn1decode
+    , Filter'lessOrEqual     <$> asn1decode
+    , Filter'present         <$> asn1decode
+    , Filter'approxMatch     <$> asn1decode
+    , Filter'extensibleMatch <$> asn1decode
+    ]
+
+  asn1encode = \case
+    Filter'and             v -> asn1encode v
+    Filter'or              v -> asn1encode v
+    Filter'not             v -> asn1encode v
+    Filter'equalityMatch   v -> asn1encode v
+    Filter'substrings      v -> asn1encode v
+    Filter'greaterOrEqual  v -> asn1encode v
+    Filter'lessOrEqual     v -> asn1encode v
+    Filter'present         v -> asn1encode v
+    Filter'approxMatch     v -> asn1encode v
+    Filter'extensibleMatch v -> asn1encode v
 
 type AttributeDescription = LDAPString
 
@@ -268,6 +439,14 @@ data AttributeValueAssertion = AttributeValueAssertion
   { _AttributeValueAssertion'attributeDesc  :: AttributeDescription
   , _AttributeValueAssertion'assertionValue :: AssertionValue
   } deriving Show
+
+instance ASN1 AttributeValueAssertion where
+  asn1decode = with'SEQUENCE $ AttributeValueAssertion <$> asn1decode <*> asn1decode
+
+  asn1encode (AttributeValueAssertion v1 v2)
+    = enc'SEQUENCE [ asn1encode v1
+                   , asn1encode v2
+                   ]
 
 {-
 
@@ -286,11 +465,31 @@ data SubstringFilter = SubstringFilter
   , _SubstringFilter'substrings :: NonEmpty Substring
   } deriving Show
 
+instance ASN1 SubstringFilter where
+  asn1decode = with'SEQUENCE $ SubstringFilter <$> asn1decode <*> asn1decode
+
+  asn1encode (SubstringFilter v1 v2)
+    = enc'SEQUENCE [ asn1encode v1
+                   , asn1encode v2
+                   ]
+
 data Substring
-  = Substring'initial  AssertionValue
-  | Substring'any      AssertionValue
-  | Substring'final    AssertionValue
+  = Substring'initial ('CONTEXTUAL 0 `IMPLICIT` AssertionValue)
+  | Substring'any     ('CONTEXTUAL 1 `IMPLICIT` AssertionValue)
+  | Substring'final   ('CONTEXTUAL 1 `IMPLICIT` AssertionValue)
   deriving Show
+
+instance ASN1 Substring where
+  asn1decode = with'CHOICE
+    [ Substring'initial <$> asn1decode
+    , Substring'any     <$> asn1decode
+    , Substring'final   <$> asn1decode
+    ]
+
+  asn1encode = \case
+    Substring'initial v -> asn1encode v
+    Substring'any     v -> asn1encode v
+    Substring'final   v -> asn1encode v
 
 
 {-
@@ -308,11 +507,22 @@ MatchingRuleId ::= LDAPString
 type MatchingRuleId = LDAPString
 
 data MatchingRuleAssertion = MatchingRuleAssertion
-  { _MatchingRuleAssertion'matchingRule :: Maybe MatchingRuleId
-  , _MatchingRuleAssertion'type         :: Maybe AttributeDescription
-  , _MatchingRuleAssertion'matchValue   :: AssertionValue
-  , _MatchingRuleAssertion'dnAttributes :: Maybe Bool
+  { _MatchingRuleAssertion'matchingRule :: Maybe ('CONTEXTUAL 1 `IMPLICIT` MatchingRuleId)
+  , _MatchingRuleAssertion'type         :: Maybe ('CONTEXTUAL 2 `IMPLICIT` AttributeDescription)
+  , _MatchingRuleAssertion'matchValue   ::       ('CONTEXTUAL 3 `IMPLICIT` AssertionValue)
+  , _MatchingRuleAssertion'dnAttributes :: Maybe ('CONTEXTUAL 4 `IMPLICIT` Bool) -- actually DEFAULT FALSE
   } deriving Show
+
+instance ASN1 MatchingRuleAssertion where
+  asn1decode = with'SEQUENCE $
+    MatchingRuleAssertion <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
+
+  asn1encode (MatchingRuleAssertion v1 v2 v3 v4)
+    = enc'SEQUENCE [ asn1encode v1
+                   , asn1encode v2
+                   , asn1encode v3
+                   , asn1encode v4
+                   ]
 
 ----------------------------------------------------------------------------
 
@@ -325,6 +535,10 @@ SearchResultReference ::= [APPLICATION 19] SEQUENCE
 
 newtype SearchResultReference = SearchResultReference (NonEmpty URI)
   deriving Show
+
+instance ASN1 SearchResultReference where
+  asn1decode = SearchResultReference <$> (Application 19 `implicit` asn1decode)
+  asn1encode (SearchResultReference v) = retag (Application 19) $ asn1encode v
 
 ----------------------------------------------------------------------------
 
@@ -348,12 +562,29 @@ data SearchResultEntry = SearchResultEntry
   , _SearchResultEntry'attributes :: PartialAttributeList
   } deriving Show
 
+instance ASN1 SearchResultEntry where
+  asn1decode = implicit (Application 4) $ with'SEQUENCE $
+    SearchResultEntry <$> asn1decode <*> asn1decode
+
+  asn1encode (SearchResultEntry v1 v2)
+    = retag (Application 4) $
+      enc'SEQUENCE [ asn1encode v1
+                   , asn1encode v2
+                   ]
+
 type PartialAttributeList = [PartialAttribute]
 
 data PartialAttribute = PartialAttribute
   { _PartialAttribute'type :: AttributeDescription
-  , _PartialAttribute'vals :: [AttributeValue]
+  , _PartialAttribute'vals :: SET AttributeValue
   } deriving Show
+
+instance ASN1 PartialAttribute where
+  asn1decode = with'SEQUENCE $ PartialAttribute <$> asn1decode <*> asn1decode
+  asn1encode (PartialAttribute v1 v2)
+    = enc'SEQUENCE [ asn1encode v1
+                   , asn1encode v2
+                   ]
 
 ----------------------------------------------------------------------------
 
@@ -363,7 +594,7 @@ SearchResultDone ::= [APPLICATION 5] LDAPResult
 
 -}
 
-type SearchResultDone = LDAPResult
+type SearchResultDone = ('APPLICATION 5 `IMPLICIT` LDAPResult)
 
 ----------------------------------------------------------------------------
 
@@ -432,15 +663,37 @@ data LDAPResult = LDAPResult
   { _LDAPResult'resultCode        :: ResultCode
   , _LDAPResult'matchedDN         :: LDAPDN
   , _LDAPResult'diagnosticMessage :: LDAPString
-  , _LDAPResult'referral          :: Maybe (NonEmpty URI)
+  , _LDAPResult'referral          :: Maybe ('CONTEXTUAL 3 `IMPLICIT` NonEmpty URI)
   } deriving Show
 
 type URI = LDAPString
 
-newtype ResultCode = ResultCode Word8 deriving (Show,Eq,Ord)
+instance ASN1 LDAPResult where
+  asn1decodeCompOf = do
+    _LDAPResult'resultCode        <- asn1decode
+    _LDAPResult'matchedDN         <- asn1decode
+    _LDAPResult'diagnosticMessage <- asn1decode
+    _LDAPResult'referral          <- asn1decode
+    pure LDAPResult{..}
 
-type LDAPString = TS.ShortText -- UTF-8 encoded; [ISO10646] characters
+  asn1encodeCompOf (LDAPResult v1 v2 v3 v4)
+    = enc'SEQUENCE_COMPS [ asn1encode v1
+                         , asn1encode v2
+                         , asn1encode v3
+                         , asn1encode v4
+                         ]
+
+instance ASN1 ResultCode where
+  asn1decode = (\(ENUMERATED x) -> x) <$> asn1decode
+  asn1encode = asn1encode . ENUMERATED
+
+instance Enumerated ResultCode where
+  toEnumerated x = ResultCode <$> intCastMaybe x
+  fromEnumerated (ResultCode x) = fromIntegral x
+
+newtype ResultCode = ResultCode Word8
+  deriving (Show,Eq,Ord)
+
+type LDAPString = ShortText -- UTF-8 encoded; [ISO10646] characters
 
 type LDAPDN = LDAPString -- Constrained to <distinguishedName> [RFC4514]
-
-type OCTET_STRING = ByteString
