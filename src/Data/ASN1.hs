@@ -409,11 +409,17 @@ wraptag newtag (ASN1Encode old) = wrap'DEFINITE newtag Constructed (old Nothing)
 newtype IMPLICIT (tag :: TagK) x = IMPLICIT x
   deriving (IsString,Num,Show,Eq,Ord,Enum)
 
+instance Newtype (IMPLICIT tag x) x
+
 newtype EXPLICIT (tag :: TagK) x = EXPLICIT x
   deriving (IsString,Num,Show,Eq,Ord,Enum)
 
+instance Newtype (EXPLICIT tag x) x
+
 newtype ENUMERATED x = ENUMERATED x
   deriving (Num,Show,Eq,Ord,Enum)
+
+instance Newtype (ENUMERATED x) x
 
 ----------------------------------------------------------------------------
 
@@ -483,6 +489,8 @@ instance ASN1 t => ASN1 (NonEmpty t) where
 newtype SET1 x = SET1 (NonEmpty x)
   deriving Show
 
+instance Newtype (SET1 x) (NonEmpty x)
+
 instance ASN1 t => ASN1 (SET1 t) where
   asn1decode = asn1decode >>= \case
                  SET [] -> asn1fail "SET must be non-empty"
@@ -492,6 +500,8 @@ instance ASN1 t => ASN1 (SET1 t) where
 
 newtype SET x = SET [x]
   deriving Show
+
+instance Newtype (SET x) [x]
 
 instance ASN1 t => ASN1 (SET t) where
   asn1decode = SET <$> with'SET_OF asn1decode

@@ -2,7 +2,7 @@ module Common (module X) where
 
 import           Control.Applicative as X
 import           Control.Monad       as X
-import           Control.Monad.Fail  as X (MonadFail)
+import           Control.Newtype     as X (Newtype (..))
 import           Data.Bits           as X
 import           Data.ByteString     as X (ByteString)
 import           Data.Int            as X
