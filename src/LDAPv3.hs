@@ -20,16 +20,91 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TypeOperators              #-}
 
+-- | This module provides a pure Haskell implementation of the /Lightweight Directory Access Protocol (LDAP)/ version 3.
 module LDAPv3
-    ( module LDAPv3
+    ( -- * LDAPv3 Protocol data structures
+      --
+      -- | The Haskell data structures defined in this module closely follow the protocol specification as laid out in <https://tools.ietf.org/html/rfc4511 RFC4511>.
+      --
+      -- For convenience, the normative <https://en.wikipedia.org/wiki/ASN.1 ASN.1> definitions for each Haskell data type are quoted.
+
+      -- ** Common Elements (<https://tools.ietf.org/html/rfc4511#section-4.1 RFC4511 Section 4.1>)
+
+      -- 4.1.1.  Message Envelope
+      LDAPMessage(..)
+    , MessageID(..)
+    , MaxInt
+    , ProtocolOp(..)
+
+      -- 4.1.2.  String Types
+    , LDAPString
+    , LDAPOID
+      -- 4.1.3.  Distinguished Name and Relative Distinguished Name
+    , LDAPDN
+ -- , RelativeLDAPDN
+      -- 4.1.4.  Attribute Descriptions
+    , AttributeDescription
+      -- 4.1.5.  Attribute Value
+    , AttributeValue
+      -- 4.1.6.  Attribute Value Assertion
+    , AttributeValueAssertion(..)
+    , AssertionValue
+      -- 4.1.7.  Attribute and PartialAttribute
+    , PartialAttribute(..)
+ -- , Attribute
+      -- 4.1.8.  Matching Rule Identifier
+    , MatchingRuleId
+      -- 4.1.9.  Result Message
+    , LDAPResult(..)
+    , ResultCode(..)
+      -- 4.1.10.  Referral
+    , Referral
+    , URI
+      -- 4.1.11.  Controls
+    , Controls
+    , Control(..)
+
+      -- ** Bind Operation  (<https://tools.ietf.org/html/rfc4511#section-4.2 RFC4511 Section 4.2>)
+
+    , BindRequest(..)
+    , AuthenticationChoice(..)
+    , SaslCredentials(..)
+    , BindResponse(..)
+
+      -- ** Unbind Operation  (<https://tools.ietf.org/html/rfc4511#section-4.3 RFC4511 Section 4.3>)
+
+    , UnbindRequest(..)
+
+      -- ** Unsolicited Notification  (<https://tools.ietf.org/html/rfc4511#section-4.4 RFC4511 Section 4.4>)
+
+      -- ** Search Operation  (<https://tools.ietf.org/html/rfc4511#section-4.5 RFC4511 Section 4.5>)
+
+    , SearchRequest(..)
+    , Scope(..)
+    , DerefAliases(..)
+    , AttributeSelection
+    , Filter(..)
+    , SubstringFilter(..)
+    , Substring(..)
+    , MatchingRuleAssertion(..)
+
+      -- *** Search Result   (<https://tools.ietf.org/html/rfc4511#section-4.5.2 RFC4511 Section 4.5.2>)
+
+    , SearchResultEntry(..)
+    , PartialAttributeList
+    , SearchResultReference(..)
+    , SearchResultDone
+
+      -- * ASN.1 Helpers
     , OCTET_STRING
 
-      -- * ASN.1 type-level annotation wrapper
+      -- ** ASN.1 type-level tagging
     , EXPLICIT(..)
     , IMPLICIT(..)
     , TagK(..)
 
       -- * Unsigned integer sub-type
+    , UIntBounds
     , UInt
     , fromUInt
     , toUInt
@@ -45,35 +120,36 @@ import qualified Data.Binary       as Bin
 ----------------------------------------------------------------------------
 -- LDAPv3 protocol
 
-{-
-LDAPMessage ::= SEQUENCE {
-     messageID       MessageID,
-     protocolOp      CHOICE {
-          bindRequest           BindRequest,
-          bindResponse          BindResponse,
-          unbindRequest         UnbindRequest,
-          searchRequest         SearchRequest,
-          searchResEntry        SearchResultEntry,
-          searchResDone         SearchResultDone,
-          searchResRef          SearchResultReference,
-          modifyRequest         ModifyRequest,
-          modifyResponse        ModifyResponse,
-          addRequest            AddRequest,
-          addResponse           AddResponse,
-          delRequest            DelRequest,
-          delResponse           DelResponse,
-          modDNRequest          ModifyDNRequest,
-          modDNResponse         ModifyDNResponse,
-          compareRequest        CompareRequest,
-          compareResponse       CompareResponse,
-          abandonRequest        AbandonRequest,
-          extendedReq           ExtendedRequest,
-          extendedResp          ExtendedResponse,
-          ...,
-          intermediateResponse  IntermediateResponse },
-     controls       [0] Controls OPTIONAL }
--}
+{- | Message Envelope (<https://tools.ietf.org/html/rfc4511#section-4.1.1 RFC4511 Section 4.1.1>)
 
+> LDAPMessage ::= SEQUENCE {
+>      messageID       MessageID,
+>      protocolOp      CHOICE {
+>           bindRequest           BindRequest,
+>           bindResponse          BindResponse,
+>           unbindRequest         UnbindRequest,
+>           searchRequest         SearchRequest,
+>           searchResEntry        SearchResultEntry,
+>           searchResDone         SearchResultDone,
+>           searchResRef          SearchResultReference,
+>           modifyRequest         ModifyRequest,
+>           modifyResponse        ModifyResponse,
+>           addRequest            AddRequest,
+>           addResponse           AddResponse,
+>           delRequest            DelRequest,
+>           delResponse           DelResponse,
+>           modDNRequest          ModifyDNRequest,
+>           modDNResponse         ModifyDNResponse,
+>           compareRequest        CompareRequest,
+>           compareResponse       CompareResponse,
+>           abandonRequest        AbandonRequest,
+>           extendedReq           ExtendedRequest,
+>           extendedResp          ExtendedResponse,
+>           ...,
+>           intermediateResponse  IntermediateResponse },
+>      controls       [0] Controls OPTIONAL }
+
+-}
 data LDAPMessage = LDAPMessage
   { _LDAPMessage'messageID  :: MessageID
   , _LDAPMessage'protocolOp :: ProtocolOp
@@ -94,7 +170,7 @@ instance ASN1 LDAPMessage where
                    , asn1encode v3
                    ]
 
-{- |
+{- | Message ID (<https://tools.ietf.org/html/rfc4511#section-4.1.1.1 RFC4511 Section 4.1.1.1>)
 
 > MessageID ::= INTEGER (0 ..  maxInt)
 
@@ -102,14 +178,16 @@ instance ASN1 LDAPMessage where
 newtype MessageID = MessageID (UInt 0 MaxInt Int32)
                   deriving (Show,ASN1)
 
-{- |
+{- | LDAPv3 protocol ASN.1 constant as per <https://tools.ietf.org/html/rfc4511#section-4.1.1 RFC4511 Section 4.1.1>
 
 > maxInt INTEGER ::= 2147483647 -- (2^^31 - 1)
 
 -}
 type MaxInt = 2147483647
 
--- @CHOICE@ type inlined in @LDAPMessage.protocolOp@
+-- | @CHOICE@ type inlined in @LDAPMessage.protocolOp@  (<https://tools.ietf.org/html/rfc4511#section-4.1.1 RFC4511 Section 4.1.1>)
+--
+-- __NOTE__: Not all operations have been implemented yet
 data ProtocolOp
   = ProtocolOp'bindRequest     BindRequest
   | ProtocolOp'bindResponse    BindResponse
@@ -144,21 +222,21 @@ instance ASN1 ProtocolOp where
 
 ----------------------------------------------------------------------------
 
-{-
+{- | Controls  (<https://tools.ietf.org/html/rfc4511#section-4.1.11 RFC4511 Section 4.1.11>)
 
-Controls ::= SEQUENCE OF control Control
-
-Control ::= SEQUENCE {
-     controlType             LDAPOID,
-     criticality             BOOLEAN DEFAULT FALSE,
-     controlValue            OCTET STRING OPTIONAL }
-
-LDAPOID ::= OCTET STRING -- Constrained to <numericoid> [RFC4512]
+> Controls ::= SEQUENCE OF control Control
 
 -}
-
 type Controls = [Control]
 
+{- | Control Entry  (<https://tools.ietf.org/html/rfc4511#section-4.1.11 RFC4511 Section 4.1.11>)
+
+> Control ::= SEQUENCE {
+>      controlType             LDAPOID,
+>      criticality             BOOLEAN DEFAULT FALSE,
+>      controlValue            OCTET STRING OPTIONAL }
+
+-}
 data Control = Control
   { _Control'controlType  :: LDAPOID
   , _Control'criticality  :: Maybe Bool -- TODO: actually "DEFAULT FALSE"
@@ -173,16 +251,22 @@ instance ASN1 Control where
                    , asn1encode v3
                    ]
 
+{- | Object identifier  (<https://tools.ietf.org/html/rfc4511#section-4.1.2 RFC4511 Section 4.1.2>)
+
+> LDAPOID ::= OCTET STRING -- Constrained to <numericoid>
+>                          -- [RFC4512]
+
+-}
 type LDAPOID = OCTET_STRING
 
 ----------------------------------------------------------------------------
 
-{-
+{- | Bind Request  (<https://tools.ietf.org/html/rfc4511#section-4.2 RFC4511 Section 4.2>)
 
-BindRequest ::= [APPLICATION 0] SEQUENCE {
-     version                 INTEGER (1 ..  127),
-     name                    LDAPDN,
-     authentication          AuthenticationChoice }
+> BindRequest ::= [APPLICATION 0] SEQUENCE {
+>      version                 INTEGER (1 ..  127),
+>      name                    LDAPDN,
+>      authentication          AuthenticationChoice }
 
 -}
 
@@ -205,16 +289,15 @@ instance ASN1 BindRequest where
 
 ----------------------------------------------------------------------------
 
-{-
+{- | See 'BindRequest'
 
-AuthenticationChoice ::= CHOICE {
-     simple                  [0] OCTET STRING,
-                             -- 1 and 2 reserved
-     sasl                    [3] SaslCredentials,
-     ...  }
+> AuthenticationChoice ::= CHOICE {
+>      simple                  [0] OCTET STRING,
+>                              -- 1 and 2 reserved
+>      sasl                    [3] SaslCredentials,
+>      ...  }
 
 -}
-
 data AuthenticationChoice
   = AuthenticationChoice'simple  ('CONTEXTUAL 0 `IMPLICIT` OCTET_STRING)
   | AuthenticationChoice'sasl    ('CONTEXTUAL 3 `IMPLICIT` SaslCredentials)
@@ -230,14 +313,13 @@ instance ASN1 AuthenticationChoice where
     AuthenticationChoice'simple v -> asn1encode v
     AuthenticationChoice'sasl   v -> asn1encode v
 
-{-
+{- | See 'AuthenticationChoice'
 
-SaslCredentials ::= SEQUENCE {
-     mechanism               LDAPString,
-     credentials             OCTET STRING OPTIONAL }
+> SaslCredentials ::= SEQUENCE {
+>      mechanism               LDAPString,
+>      credentials             OCTET STRING OPTIONAL }
 
 -}
-
 data SaslCredentials = SaslCredentials
   { _SaslCredentials'mechanism   :: LDAPString
   , _SaslCredentials'credentials :: Maybe OCTET_STRING
@@ -253,11 +335,11 @@ instance ASN1 SaslCredentials where
 
 ----------------------------------------------------------------------------
 
-{-
+{- | Bind Response  (<https://tools.ietf.org/html/rfc4511#section-4.2 RFC4511 Section 4.2>)
 
-BindResponse ::= [APPLICATION 1] SEQUENCE {
-     COMPONENTS OF LDAPResult,
-     serverSaslCreds    [7] OCTET STRING OPTIONAL }
+> BindResponse ::= [APPLICATION 1] SEQUENCE {
+>      COMPONENTS OF LDAPResult,
+>      serverSaslCreds    [7] OCTET STRING OPTIONAL }
 
 -}
 
@@ -280,9 +362,9 @@ instance ASN1 BindResponse where
 
 ----------------------------------------------------------------------------
 
-{-
+{- | Unbind Operation  (<https://tools.ietf.org/html/rfc4511#section-4.3 RFC4511 Section 4.3>)
 
-UnbindRequest ::= [APPLICATION 2] NULL
+> UnbindRequest ::= [APPLICATION 2] NULL
 
 -}
 
@@ -295,32 +377,27 @@ instance ASN1 UnbindRequest where
 
 ----------------------------------------------------------------------------
 
-{-
+{- | Search Request  (<https://tools.ietf.org/html/rfc4511#section-4.5.1 RFC4511 Section 4.5.1>)
 
-SearchRequest ::= [APPLICATION 3] SEQUENCE {
-     baseObject      LDAPDN,
-     scope           ENUMERATED {
-          baseObject              (0),
-          singleLevel             (1),
-          wholeSubtree            (2),
-          ...  },
-     derefAliases    ENUMERATED {
-          neverDerefAliases       (0),
-          derefInSearching        (1),
-          derefFindingBaseObj     (2),
-          derefAlways             (3) },
-     sizeLimit       INTEGER (0 ..  maxInt),
-     timeLimit       INTEGER (0 ..  maxInt),
-     typesOnly       BOOLEAN,
-     filter          Filter,
-     attributes      AttributeSelection }
-
-AttributeSelection ::= SEQUENCE OF selector LDAPString
-               -- The LDAPString is constrained to
-               -- <attributeSelector> in Section 4.5.1.8
+> SearchRequest ::= [APPLICATION 3] SEQUENCE {
+>      baseObject      LDAPDN,
+>      scope           ENUMERATED {
+>           baseObject              (0),
+>           singleLevel             (1),
+>           wholeSubtree            (2),
+>           ...  },
+>      derefAliases    ENUMERATED {
+>           neverDerefAliases       (0),
+>           derefInSearching        (1),
+>           derefFindingBaseObj     (2),
+>           derefAlways             (3) },
+>      sizeLimit       INTEGER (0 ..  maxInt),
+>      timeLimit       INTEGER (0 ..  maxInt),
+>      typesOnly       BOOLEAN,
+>      filter          Filter,
+>      attributes      AttributeSelection }
 
 -}
-
 data SearchRequest = SearchRequest
   { _SearchRequest'baseObject   :: LDAPDN
   , _SearchRequest'scope        :: Scope
@@ -332,6 +409,13 @@ data SearchRequest = SearchRequest
   , _SearchRequest'attributes   :: AttributeSelection
   } deriving Show
 
+{- | See 'SearchRequest'
+
+> AttributeSelection ::= SEQUENCE OF selector LDAPString
+>                -- The LDAPString is constrained to
+>                -- <attributeSelector> in Section 4.5.1.8
+
+-}
 type AttributeSelection = [LDAPString]
 
 instance ASN1 SearchRequest where
@@ -347,7 +431,6 @@ instance ASN1 SearchRequest where
 
     pure SearchRequest{..}
 
-
   asn1encode (SearchRequest v1 v2 v3 v4 v5 v6 v7 v8)
     = retag (Application 3) $
       enc'SEQUENCE [ asn1encode v1
@@ -360,6 +443,7 @@ instance ASN1 SearchRequest where
                    , asn1encode v8
                    ]
 
+-- | See 'SearchRequest'  (<https://tools.ietf.org/html/rfc4511#section-4.5.1.2 RFC4511 Section 4.5.1.2>)
 data Scope
   = Scope'baseObject
   | Scope'singleLevel
@@ -370,6 +454,7 @@ instance ASN1 Scope where
   asn1decode = dec'BoundedEnum
   asn1encode = enc'BoundedEnum
 
+-- | See 'SearchRequest'  (<https://tools.ietf.org/html/rfc4511#section-4.5.1.3 RFC4511 Section 4.5.1.3>)
 data DerefAliases
   = DerefAliases'neverDerefAliases
   | DerefAliases'derefInSearching
@@ -381,36 +466,22 @@ instance ASN1 DerefAliases where
   asn1decode = dec'BoundedEnum
   asn1encode = enc'BoundedEnum
 
-{-
+{- | Search Filter  (<https://tools.ietf.org/html/rfc4511#section-4.5.1.7 RFC4511 Section 4.5.1.7>)
 
-Filter ::= CHOICE {
-     and             [0] SET SIZE (1..MAX) OF filter Filter,
-     or              [1] SET SIZE (1..MAX) OF filter Filter,
-     not             [2] Filter,
-     equalityMatch   [3] AttributeValueAssertion,
-     substrings      [4] SubstringFilter,
-     greaterOrEqual  [5] AttributeValueAssertion,
-     lessOrEqual     [6] AttributeValueAssertion,
-     present         [7] AttributeDescription,
-     approxMatch     [8] AttributeValueAssertion,
-     extensibleMatch [9] MatchingRuleAssertion,
-     ...  }
-
-
-AttributeDescription ::= LDAPString
-                        -- Constrained to <attributedescription>
-                        -- [RFC4512]
-
-AttributeValue ::= OCTET STRING
-
-AssertionValue ::= OCTET STRING
-
-AttributeValueAssertion ::= SEQUENCE {
-     attributeDesc   AttributeDescription,
-     assertionValue  AssertionValue }
+> Filter ::= CHOICE {
+>      and             [0] SET SIZE (1..MAX) OF filter Filter,
+>      or              [1] SET SIZE (1..MAX) OF filter Filter,
+>      not             [2] Filter,
+>      equalityMatch   [3] AttributeValueAssertion,
+>      substrings      [4] SubstringFilter,
+>      greaterOrEqual  [5] AttributeValueAssertion,
+>      lessOrEqual     [6] AttributeValueAssertion,
+>      present         [7] AttributeDescription,
+>      approxMatch     [8] AttributeValueAssertion,
+>      extensibleMatch [9] MatchingRuleAssertion,
+>      ...  }
 
 -}
-
 data Filter
   = Filter'and             ('CONTEXTUAL 0 `IMPLICIT` SET1 Filter)
   | Filter'or              ('CONTEXTUAL 1 `IMPLICIT` SET1 Filter)
@@ -450,16 +521,36 @@ instance ASN1 Filter where
     Filter'approxMatch     v -> asn1encode v
     Filter'extensibleMatch v -> asn1encode v
 
+{- | Attribute Descriptions  (<https://tools.ietf.org/html/rfc4511#section-4.1.4 RFC4511 Section 4.1.4>)
+
+> AttributeDescription ::= LDAPString
+>                         -- Constrained to <attributedescription>
+>                         -- [RFC4512]
+
+-}
 type AttributeDescription = LDAPString
 
+{- | Attribute Value  (<https://tools.ietf.org/html/rfc4511#section-4.1.5 RFC4511 Section 4.1.5>)
+
+> AttributeValue ::= OCTET STRING
+
+-}
 type AttributeValue = OCTET_STRING
 
-type AssertionValue = OCTET_STRING
+{- | Attribute Value Assertion  (<https://tools.ietf.org/html/rfc4511#section-4.1.6 RFC4511 Section 4.1.6>)
 
+> AttributeValueAssertion ::= SEQUENCE {
+>      attributeDesc   AttributeDescription,
+>      assertionValue  AssertionValue }
+
+-}
 data AttributeValueAssertion = AttributeValueAssertion
   { _AttributeValueAssertion'attributeDesc  :: AttributeDescription
   , _AttributeValueAssertion'assertionValue :: AssertionValue
   } deriving Show
+
+-- | > AssertionValue ::= OCTET STRING
+type AssertionValue = OCTET_STRING
 
 instance ASN1 AttributeValueAssertion where
   asn1decode = with'SEQUENCE $ AttributeValueAssertion <$> asn1decode <*> asn1decode
@@ -469,18 +560,17 @@ instance ASN1 AttributeValueAssertion where
                    , asn1encode v2
                    ]
 
-{-
+{- | Substring 'Filter'  (<https://tools.ietf.org/html/rfc4511#section-4.5.1.7.2 RFC4511 Section 4.5.1.7.2>)
 
-SubstringFilter ::= SEQUENCE {
-     type           AttributeDescription,
-     substrings     SEQUENCE SIZE (1..MAX) OF substring CHOICE {
-          initial [0] AssertionValue,  -- can occur at most once
-          any     [1] AssertionValue,
-          final   [2] AssertionValue } -- can occur at most once
-     }
+> SubstringFilter ::= SEQUENCE {
+>      type           AttributeDescription,
+>      substrings     SEQUENCE SIZE (1..MAX) OF substring CHOICE {
+>           initial [0] AssertionValue,  -- can occur at most once
+>           any     [1] AssertionValue,
+>           final   [2] AssertionValue } -- can occur at most once
+>      }
 
 -}
-
 data SubstringFilter = SubstringFilter
   { _SubstringFilter'type       :: AttributeDescription
   , _SubstringFilter'substrings :: NonEmpty Substring
@@ -494,6 +584,7 @@ instance ASN1 SubstringFilter where
                    , asn1encode v2
                    ]
 
+-- | See 'SubstringFilter'
 data Substring
   = Substring'initial ('CONTEXTUAL 0 `IMPLICIT` AssertionValue)
   | Substring'any     ('CONTEXTUAL 1 `IMPLICIT` AssertionValue)
@@ -513,20 +604,22 @@ instance ASN1 Substring where
     Substring'final   v -> asn1encode v
 
 
-{-
+{- | Matching Rule Identifier  (<https://tools.ietf.org/html/rfc4511#section-4.1.8 RFC4511 Section 4.1.8>)
 
-MatchingRuleAssertion ::= SEQUENCE {
-     matchingRule    [1] MatchingRuleId OPTIONAL,
-     type            [2] AttributeDescription OPTIONAL,
-     matchValue      [3] AssertionValue,
-     dnAttributes    [4] BOOLEAN DEFAULT FALSE }
-
-MatchingRuleId ::= LDAPString
+> MatchingRuleId ::= LDAPString
 
 -}
-
 type MatchingRuleId = LDAPString
 
+{- | See 'SearchRequest' 'Filter'
+
+> MatchingRuleAssertion ::= SEQUENCE {
+>      matchingRule    [1] MatchingRuleId OPTIONAL,
+>      type            [2] AttributeDescription OPTIONAL,
+>      matchValue      [3] AssertionValue,
+>      dnAttributes    [4] BOOLEAN DEFAULT FALSE }
+
+-}
 data MatchingRuleAssertion = MatchingRuleAssertion
   { _MatchingRuleAssertion'matchingRule :: Maybe ('CONTEXTUAL 1 `IMPLICIT` MatchingRuleId)
   , _MatchingRuleAssertion'type         :: Maybe ('CONTEXTUAL 2 `IMPLICIT` AttributeDescription)
@@ -547,10 +640,10 @@ instance ASN1 MatchingRuleAssertion where
 
 ----------------------------------------------------------------------------
 
-{-
+{- | Search Result Continuation Reference  (<https://tools.ietf.org/html/rfc4511#section-4.5.3 RFC4511 Section 4.5.3>)
 
-SearchResultReference ::= [APPLICATION 19] SEQUENCE
-                          SIZE (1..MAX) OF uri URI
+> SearchResultReference ::= [APPLICATION 19] SEQUENCE
+>                           SIZE (1..MAX) OF uri URI
 
 -}
 
@@ -563,21 +656,13 @@ instance ASN1 SearchResultReference where
 
 ----------------------------------------------------------------------------
 
-{-
+{- | Search Result Entry  (<https://tools.ietf.org/html/rfc4511#section-4.5.2 RFC4511 Section 4.5.2>)
 
-SearchResultEntry ::= [APPLICATION 4] SEQUENCE {
-     objectName      LDAPDN,
-     attributes      PartialAttributeList }
-
-PartialAttributeList ::= SEQUENCE OF
-                     partialAttribute PartialAttribute
-
-PartialAttribute ::= SEQUENCE {
-     type       AttributeDescription,
-     vals       SET OF value AttributeValue }
+> SearchResultEntry ::= [APPLICATION 4] SEQUENCE {
+>      objectName      LDAPDN,
+>      attributes      PartialAttributeList }
 
 -}
-
 data SearchResultEntry = SearchResultEntry
   { _SearchResultEntry'objectName :: LDAPDN
   , _SearchResultEntry'attributes :: PartialAttributeList
@@ -593,8 +678,21 @@ instance ASN1 SearchResultEntry where
                    , asn1encode v2
                    ]
 
+{- | See 'SearchResultEntry'
+
+> PartialAttributeList ::= SEQUENCE OF
+>                      partialAttribute PartialAttribute
+
+-}
 type PartialAttributeList = [PartialAttribute]
 
+{- | Partial Attribute  (<https://tools.ietf.org/html/rfc4511#section-4.1.7 RFC4511 Section 4.1.7>)
+
+> PartialAttribute ::= SEQUENCE {
+>      type       AttributeDescription,
+>      vals       SET OF value AttributeValue }
+
+-}
 data PartialAttribute = PartialAttribute
   { _PartialAttribute'type :: AttributeDescription
   , _PartialAttribute'vals :: SET AttributeValue
@@ -609,84 +707,91 @@ instance ASN1 PartialAttribute where
 
 ----------------------------------------------------------------------------
 
-{-
+{- | Search Result Done  (<https://tools.ietf.org/html/rfc4511#section-4.5.2 RFC4511 Section 4.5.2>)
 
-SearchResultDone ::= [APPLICATION 5] LDAPResult
+> SearchResultDone ::= [APPLICATION 5] LDAPResult
 
 -}
-
 type SearchResultDone = ('APPLICATION 5 `IMPLICIT` LDAPResult)
 
 ----------------------------------------------------------------------------
 
-{-
-LDAPResult ::= SEQUENCE {
-     resultCode         ENUMERATED {
-          success                      (0),
-          operationsError              (1),
-          protocolError                (2),
-          timeLimitExceeded            (3),
-          sizeLimitExceeded            (4),
-          compareFalse                 (5),
-          compareTrue                  (6),
-          authMethodNotSupported       (7),
-          strongerAuthRequired         (8),
-               -- 9 reserved --
-          referral                     (10),
-          adminLimitExceeded           (11),
-          unavailableCriticalExtension (12),
-          confidentialityRequired      (13),
-          saslBindInProgress           (14),
-          noSuchAttribute              (16),
-          undefinedAttributeType       (17),
-          inappropriateMatching        (18),
-          constraintViolation          (19),
-          attributeOrValueExists       (20),
-          invalidAttributeSyntax       (21),
-               -- 22-31 unused --
-          noSuchObject                 (32),
-          aliasProblem                 (33),
-          invalidDNSyntax              (34),
-               -- 35 reserved for undefined isLeaf --
-          aliasDereferencingProblem    (36),
-               -- 37-47 unused --
-          inappropriateAuthentication  (48),
-          invalidCredentials           (49),
-          insufficientAccessRights     (50),
-          busy                         (51),
-          unavailable                  (52),
-          unwillingToPerform           (53),
-          loopDetect                   (54),
-               -- 55-63 unused --
-          namingViolation              (64),
-          objectClassViolation         (65),
-          notAllowedOnNonLeaf          (66),
-          notAllowedOnRDN              (67),
-          entryAlreadyExists           (68),
-          objectClassModsProhibited    (69),
-               -- 70 reserved for CLDAP --
-          affectsMultipleDSAs          (71),
-               -- 72-79 unused --
-          other                        (80),
-          ...  },
-     matchedDN          LDAPDN,
-     diagnosticMessage  LDAPString,
-     referral           [3] Referral OPTIONAL }
+{- | Result Message  (<https://tools.ietf.org/html/rfc4511#section-4.1.9 RFC4511 Section 4.1.9>)
 
-Referral ::= SEQUENCE SIZE (1..MAX) OF uri URI
-
-URI ::= LDAPString     -- limited to characters permitted in
-                       -- URIs
+> LDAPResult ::= SEQUENCE {
+>      resultCode         ENUMERATED {
+>           success                      (0),
+>           operationsError              (1),
+>           protocolError                (2),
+>           timeLimitExceeded            (3),
+>           sizeLimitExceeded            (4),
+>           compareFalse                 (5),
+>           compareTrue                  (6),
+>           authMethodNotSupported       (7),
+>           strongerAuthRequired         (8),
+>                -- 9 reserved --
+>           referral                     (10),
+>           adminLimitExceeded           (11),
+>           unavailableCriticalExtension (12),
+>           confidentialityRequired      (13),
+>           saslBindInProgress           (14),
+>           noSuchAttribute              (16),
+>           undefinedAttributeType       (17),
+>           inappropriateMatching        (18),
+>           constraintViolation          (19),
+>           attributeOrValueExists       (20),
+>           invalidAttributeSyntax       (21),
+>                -- 22-31 unused --
+>           noSuchObject                 (32),
+>           aliasProblem                 (33),
+>           invalidDNSyntax              (34),
+>                -- 35 reserved for undefined isLeaf --
+>           aliasDereferencingProblem    (36),
+>                -- 37-47 unused --
+>           inappropriateAuthentication  (48),
+>           invalidCredentials           (49),
+>           insufficientAccessRights     (50),
+>           busy                         (51),
+>           unavailable                  (52),
+>           unwillingToPerform           (53),
+>           loopDetect                   (54),
+>                -- 55-63 unused --
+>           namingViolation              (64),
+>           objectClassViolation         (65),
+>           notAllowedOnNonLeaf          (66),
+>           notAllowedOnRDN              (67),
+>           entryAlreadyExists           (68),
+>           objectClassModsProhibited    (69),
+>                -- 70 reserved for CLDAP --
+>           affectsMultipleDSAs          (71),
+>                -- 72-79 unused --
+>           other                        (80),
+>           ...  },
+>      matchedDN          LDAPDN,
+>      diagnosticMessage  LDAPString,
+>      referral           [3] Referral OPTIONAL }
 
 -}
-
 data LDAPResult = LDAPResult
   { _LDAPResult'resultCode        :: ResultCode
   , _LDAPResult'matchedDN         :: LDAPDN
   , _LDAPResult'diagnosticMessage :: LDAPString
-  , _LDAPResult'referral          :: Maybe ('CONTEXTUAL 3 `IMPLICIT` NonEmpty URI)
+  , _LDAPResult'referral          :: Maybe ('CONTEXTUAL 3 `IMPLICIT` Referral)
   } deriving Show
 
+{- | Referral result code  (<https://tools.ietf.org/html/rfc4511#section-4.1.10 RFC4511 Section 4.1.10>)
+
+> Referral ::= SEQUENCE SIZE (1..MAX) OF uri URI
+
+-}
+type Referral = ('CONTEXTUAL 3 `IMPLICIT` NonEmpty URI)
+
+{- |
+
+> URI ::= LDAPString     -- limited to characters permitted in
+>                        -- URIs
+
+-}
 type URI = LDAPString
 
 instance ASN1 LDAPResult where
@@ -712,9 +817,22 @@ instance Enumerated ResultCode where
   toEnumerated x = ResultCode <$> intCastMaybe x
   fromEnumerated (ResultCode x) = fromIntegral x
 
+-- FIXME
 newtype ResultCode = ResultCode Word8
   deriving (Show,Eq,Ord)
 
-type LDAPString = ShortText -- UTF-8 encoded; [ISO10646] characters
+{- | String Type  (<https://tools.ietf.org/html/rfc4511#section-4.1.2 RFC4511 Section 4.1.2>)
 
-type LDAPDN = LDAPString -- Constrained to <distinguishedName> [RFC4514]
+> LDAPString ::= OCTET STRING -- UTF-8 encoded,
+>                             -- [ISO10646] characters
+
+-}
+type LDAPString = ShortText
+
+{- | Distinguished Name  (<https://tools.ietf.org/html/rfc4511#section-4.1.3 RFC4511 Section 4.1.3>)
+
+> LDAPDN ::= LDAPString -- Constrained to <distinguishedName>
+>                       -- [RFC4514]
+
+-}
+type LDAPDN = LDAPString
