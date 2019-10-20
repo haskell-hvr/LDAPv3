@@ -306,7 +306,10 @@ dec'BOOLEAN = asn1DecodeSingleton (Universal 1) $ asPrimitive go
   where
     go 1 = do
       x <- getWord8
-      pure $! x /= 0x00
+      case x of
+        0x00 -> pure False
+        0xff -> pure True
+        _    -> fail "BOOLEAN must be encoded as either 0x00 or 0xFF" -- enforce DER/DER rules here
     go _ = fail "BOOLEAN with content-length not equal 1"
 
 enc'BOOLEAN :: Bool -> ASN1Encode Word64

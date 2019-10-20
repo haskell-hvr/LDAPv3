@@ -63,6 +63,7 @@ library
       Data.Int.Subtypes
       Data.ASN1
       Data.ASN1.Prim
+      LDAPv3.ResultCode
 
 -------------------------------------------------------------------------------
 

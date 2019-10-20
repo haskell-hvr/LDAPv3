@@ -114,6 +114,7 @@ import           Common
 import           Data.ASN1
 import           Data.ASN1.Prim
 import           Data.Int.Subtypes
+import           LDAPv3.ResultCode
 
 import qualified Data.Binary       as Bin
 
@@ -808,18 +809,6 @@ instance ASN1 LDAPResult where
                          , asn1encode v3
                          , asn1encode v4
                          ]
-
-instance ASN1 ResultCode where
-  asn1decode = (\(ENUMERATED x) -> x) <$> asn1decode
-  asn1encode = asn1encode . ENUMERATED
-
-instance Enumerated ResultCode where
-  toEnumerated x = ResultCode <$> intCastMaybe x
-  fromEnumerated (ResultCode x) = fromIntegral x
-
--- FIXME
-newtype ResultCode = ResultCode Word8
-  deriving (Show,Eq,Ord)
 
 {- | String Type  (<https://tools.ietf.org/html/rfc4511#section-4.1.2 RFC4511 Section 4.1.2>)
 
