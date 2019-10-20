@@ -27,7 +27,41 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 
-module Data.ASN1 where
+module Data.ASN1
+    ( ASN1(..)
+    , ASN1Decode
+    , ASN1Encode
+
+    , ENUMERATED(..), Enumerated(..)
+    , IMPLICIT(..), implicit
+    , EXPLICIT(..), explicit
+
+    , OCTET_STRING
+    , NULL
+    , BOOLEAN
+    , BOOLEAN_DEFAULT_FALSE
+    , OPTIONAL
+
+    , SET(..)
+    , SET1(..)
+
+    , toBinaryPut
+    , toBinaryGet
+
+    , retag, wraptag
+
+    , with'SEQUENCE
+    , enc'SEQUENCE
+    , enc'SEQUENCE_COMPS
+
+    , with'CHOICE
+
+    , dec'BoundedEnum
+    , enc'BoundedEnum
+
+    , dec'NULL
+    , enc'NULL
+    ) where
 
 import           Common
 import           Data.ASN1.Prim
@@ -550,3 +584,18 @@ type NULL = ()
 instance ASN1 () where
   asn1decode = dec'NULL
   asn1encode () = enc'NULL
+
+-- | This represents a @BOOLEAN DEFAULT FALSE@ that is only ever serialized as 'True' (hence why its only inhabitant is a /true/ value)
+--
+-- This must be 'Maybe'-wrapped to make any sense
+data BOOLEAN_DEFAULT_FALSE = BOOL_TRUE
+  deriving (Eq,Ord,Show)
+
+instance ASN1 BOOLEAN_DEFAULT_FALSE where
+  asn1decode = do
+    b <- dec'BOOLEAN
+    case b of
+      True  -> pure BOOL_TRUE
+      False -> asn1fail "FALSE encountered despite 'BOOLEAN DEFAULT FALSE'"
+
+  asn1encode BOOL_TRUE = asn1encode True

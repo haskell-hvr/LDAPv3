@@ -240,7 +240,7 @@ type Controls = [Control]
 -}
 data Control = Control
   { _Control'controlType  :: LDAPOID
-  , _Control'criticality  :: Maybe Bool -- TODO: actually "DEFAULT FALSE"
+  , _Control'criticality  :: Maybe BOOLEAN_DEFAULT_FALSE
   , _Control'controlValue :: Maybe OCTET_STRING
   } deriving Show
 
@@ -625,7 +625,7 @@ data MatchingRuleAssertion = MatchingRuleAssertion
   { _MatchingRuleAssertion'matchingRule :: Maybe ('CONTEXTUAL 1 `IMPLICIT` MatchingRuleId)
   , _MatchingRuleAssertion'type         :: Maybe ('CONTEXTUAL 2 `IMPLICIT` AttributeDescription)
   , _MatchingRuleAssertion'matchValue   ::       ('CONTEXTUAL 3 `IMPLICIT` AssertionValue)
-  , _MatchingRuleAssertion'dnAttributes :: Maybe ('CONTEXTUAL 4 `IMPLICIT` Bool) -- actually DEFAULT FALSE
+  , _MatchingRuleAssertion'dnAttributes :: Maybe ('CONTEXTUAL 4 `IMPLICIT` BOOLEAN_DEFAULT_FALSE)
   } deriving Show
 
 instance ASN1 MatchingRuleAssertion where
