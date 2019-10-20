@@ -1,6 +1,7 @@
 module Common (module X) where
 
 import           Control.Applicative as X
+import           Control.Exception   as X (ArithException (Overflow, Underflow), throw)
 import           Control.Monad       as X
 import           Control.Newtype     as X (Newtype (..))
 import           Data.Bits           as X

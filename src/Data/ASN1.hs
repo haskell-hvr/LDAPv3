@@ -14,6 +14,7 @@
 --  along with this program (see `LICENSE`).  If not, see
 --  <https://www.gnu.org/licenses/old-licenses/gpl-2.0.html>.
 
+{-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE FlexibleContexts           #-}
@@ -30,6 +31,7 @@ module Data.ASN1 where
 
 import           Common
 import           Data.ASN1.Prim
+import           Data.Int.Subtypes
 
 import           Data.Binary           as Bin
 import           Data.Binary.Get       as Bin
@@ -334,6 +336,18 @@ dec'INTEGER = asn1DecodeSingleton (Universal 2) $ asPrimitive getVarInteger
 enc'INTEGER :: Integer -> ASN1Encode Word64
 enc'INTEGER i = wrap'DEFINITE (Universal 2) Primitive (putVarInteger i)
 
+dec'UInt :: forall lb ub t . (UIntBounds lb ub t, Num t) => ASN1Decode (UInt lb ub t)
+dec'UInt = do
+  i <- dec'INTEGER -- TODO: size-hint
+  case uintFromInteger (toInteger i) of
+    Left Underflow -> asn1fail "INTEGER below lower bound"
+    Left Overflow  -> asn1fail "INTEGER above upper bound"
+    Left _         -> asn1fail "INTEGER"
+    Right v        -> pure v
+
+enc'UInt :: forall lb ub t . (UIntBounds lb ub t, Num t, Integral t) => UInt lb ub t -> ASN1Encode Word64
+enc'UInt = enc'INTEGER . toInteger . fromUInt
+
 dec'Int64 :: ASN1Decode Int64
 dec'Int64 = asn1DecodeSingleton (Universal 2) $ asPrimitive getVarInt64
 
@@ -515,13 +529,9 @@ instance ASN1 Int64 where
   asn1decode = dec'Int64
   asn1encode = enc'Int64
 
-instance ASN1 Int32 where -- FIXME
-  asn1decode = fromIntegral <$> dec'Int64
-  asn1encode = enc'Int64 . fromIntegral
-
-instance ASN1 Int8 where -- FIXME
-  asn1decode = fromIntegral <$> dec'Int64
-  asn1encode = enc'Int64 . fromIntegral
+instance (UIntBounds lb ub t, Integral t) => ASN1 (UInt lb ub t) where
+  asn1decode = dec'UInt
+  asn1encode = enc'UInt
 
 instance forall tag t . (KnownTag tag, ASN1 t) => ASN1 (IMPLICIT tag t) where
   asn1decode = IMPLICIT <$> implicit (tagVal (Proxy :: Proxy tag)) asn1decode

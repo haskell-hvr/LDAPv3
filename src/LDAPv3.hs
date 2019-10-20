@@ -20,13 +20,27 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TypeOperators              #-}
 
-module LDAPv3 where
+module LDAPv3
+    ( module LDAPv3
+    , OCTET_STRING
+
+      -- * ASN.1 type-level annotation wrapper
+    , EXPLICIT(..)
+    , IMPLICIT(..)
+    , TagK(..)
+
+      -- * Unsigned integer sub-type
+    , UInt
+    , fromUInt
+    , toUInt
+    ) where
 
 import           Common
 import           Data.ASN1
 import           Data.ASN1.Prim
+import           Data.Int.Subtypes
 
-import qualified Data.Binary    as Bin
+import qualified Data.Binary       as Bin
 
 ----------------------------------------------------------------------------
 -- LDAPv3 protocol
@@ -80,13 +94,20 @@ instance ASN1 LDAPMessage where
                    , asn1encode v3
                    ]
 
-{-
+{- |
 
-MessageID ::= INTEGER (0 ..  maxInt)
+> MessageID ::= INTEGER (0 ..  maxInt)
 
 -}
-newtype MessageID = MessageID Int32
+newtype MessageID = MessageID (UInt 0 MaxInt Int32)
                   deriving (Show,ASN1)
+
+{- |
+
+> maxInt INTEGER ::= 2147483647 -- (2^^31 - 1)
+
+-}
+type MaxInt = 2147483647
 
 -- @CHOICE@ type inlined in @LDAPMessage.protocolOp@
 data ProtocolOp
@@ -166,7 +187,7 @@ BindRequest ::= [APPLICATION 0] SEQUENCE {
 -}
 
 data BindRequest = BindRequest
-  { bindRequest'version        :: Int8
+  { bindRequest'version        :: UInt 1 127 Int8
   , bindRequest'name           :: LDAPDN
   , bindRequest'authentication :: AuthenticationChoice
   } deriving Show
@@ -304,8 +325,8 @@ data SearchRequest = SearchRequest
   { _SearchRequest'baseObject   :: LDAPDN
   , _SearchRequest'scope        :: Scope
   , _SearchRequest'derefAliases :: DerefAliases
-  , _SearchRequest'sizeLimit    :: Int32
-  , _SearchRequest'timeLimit    :: Int32
+  , _SearchRequest'sizeLimit    :: (UInt 0 MaxInt Int32)
+  , _SearchRequest'timeLimit    :: (UInt 0 MaxInt Int32)
   , _SearchRequest'typesOnly    :: Bool
   , _SearchRequest'filter       :: Filter
   , _SearchRequest'attributes   :: AttributeSelection
