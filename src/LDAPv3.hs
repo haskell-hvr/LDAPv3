@@ -98,6 +98,8 @@ module LDAPv3
       -- * ASN.1 Helpers
     , OCTET_STRING
     , BOOLEAN_DEFAULT_FALSE(..)
+    , SET(..)
+    , SET1(..)
 
       -- ** ASN.1 type-level tagging
     , EXPLICIT(..)
@@ -156,7 +158,7 @@ data LDAPMessage = LDAPMessage
   { _LDAPMessage'messageID  :: MessageID
   , _LDAPMessage'protocolOp :: ProtocolOp
   , _LDAPMessage'controls   :: Maybe ('CONTEXTUAL 0 `IMPLICIT` Controls)
-  } deriving Show
+  } deriving (Show,Eq)
 
 instance Bin.Binary LDAPMessage where
   put = void . toBinaryPut . asn1encode
@@ -172,7 +174,7 @@ instance ASN1 LDAPMessage where
 
 -}
 newtype MessageID = MessageID (UInt 0 MaxInt Int32)
-                  deriving (Show,ASN1)
+                  deriving (Ord,Bounded,ASN1,Show,Eq)
 
 {- | LDAPv3 protocol ASN.1 constant as per <https://tools.ietf.org/html/rfc4511#section-4.1.1 RFC4511 Section 4.1.1>
 
@@ -192,7 +194,7 @@ data ProtocolOp
   | ProtocolOp'searchResEntry  SearchResultEntry
   | ProtocolOp'searchResDone   SearchResultDone
   | ProtocolOp'searchResRef    SearchResultReference
-  deriving Show
+  deriving (Show,Eq)
 
 instance ASN1 ProtocolOp where
   asn1decode = with'CHOICE
@@ -237,7 +239,7 @@ data Control = Control
   { _Control'controlType  :: LDAPOID
   , _Control'criticality  :: Maybe BOOLEAN_DEFAULT_FALSE
   , _Control'controlValue :: Maybe OCTET_STRING
-  } deriving Show
+  } deriving (Show,Eq)
 
 instance ASN1 Control where
   asn1decode = with'SEQUENCE $ Control <$> asn1decode <*> asn1decode <*> asn1decode
@@ -270,7 +272,7 @@ data BindRequest = BindRequest
   { bindRequest'version        :: UInt 1 127 Int8
   , bindRequest'name           :: LDAPDN
   , bindRequest'authentication :: AuthenticationChoice
-  } deriving Show
+  } deriving (Show,Eq)
 
 instance ASN1 BindRequest where
   asn1defTag _ = Application 0
@@ -291,7 +293,7 @@ instance ASN1 BindRequest where
 data AuthenticationChoice
   = AuthenticationChoice'simple  ('CONTEXTUAL 0 `IMPLICIT` OCTET_STRING)
   | AuthenticationChoice'sasl    ('CONTEXTUAL 3 `IMPLICIT` SaslCredentials)
-  deriving Show
+  deriving (Show,Eq)
 
 instance ASN1 AuthenticationChoice where
   asn1decode = with'CHOICE
@@ -313,7 +315,7 @@ instance ASN1 AuthenticationChoice where
 data SaslCredentials = SaslCredentials
   { _SaslCredentials'mechanism   :: LDAPString
   , _SaslCredentials'credentials :: Maybe OCTET_STRING
-  } deriving Show
+  } deriving (Show,Eq)
 
 instance ASN1 SaslCredentials where
   asn1decodeCompOf = SaslCredentials <$> asn1decode <*> asn1decode
@@ -332,7 +334,7 @@ instance ASN1 SaslCredentials where
 data BindResponse = BindResponse
   { _BindResponse'LDAPResult      :: LDAPResult
   , _BindResponse'serverSaslCreds :: Maybe ('CONTEXTUAL 7 `IMPLICIT` OCTET_STRING)
-  } deriving Show
+  } deriving (Show,Eq)
 
 instance ASN1 BindResponse where
   asn1defTag _ = Application 1
@@ -355,7 +357,7 @@ instance ASN1 BindResponse where
 -}
 
 data UnbindRequest = UnbindRequest
-  deriving Show
+  deriving (Show,Eq)
 
 instance ASN1 UnbindRequest where
   asn1defTag _ = Application 2 -- not used
@@ -394,7 +396,7 @@ data SearchRequest = SearchRequest
   , _SearchRequest'typesOnly    :: Bool
   , _SearchRequest'filter       :: Filter
   , _SearchRequest'attributes   :: AttributeSelection
-  } deriving Show
+  } deriving (Show,Eq)
 
 {- | See 'SearchRequest'
 
@@ -435,7 +437,7 @@ data Scope
   = Scope'baseObject
   | Scope'singleLevel
   | Scope'wholeSubtree
-  deriving (Bounded,Enum,Show)
+  deriving (Bounded,Enum,Show,Eq)
 
 instance ASN1 Scope where
   asn1decode = dec'BoundedEnum
@@ -447,7 +449,7 @@ data DerefAliases
   | DerefAliases'derefInSearching
   | DerefAliases'derefFindingBaseObj
   | DerefAliases'derefAlways
-  deriving (Bounded,Enum,Show)
+  deriving (Bounded,Enum,Show,Eq)
 
 instance ASN1 DerefAliases where
   asn1decode = dec'BoundedEnum
@@ -472,7 +474,7 @@ instance ASN1 DerefAliases where
 data Filter
   = Filter'and             ('CONTEXTUAL 0 `IMPLICIT` SET1 Filter)
   | Filter'or              ('CONTEXTUAL 1 `IMPLICIT` SET1 Filter)
-  | Filter'not             ('CONTEXTUAL 2 `EXPLICIT` SET1 Filter)
+  | Filter'not             ('CONTEXTUAL 2 `EXPLICIT` Filter)
   | Filter'equalityMatch   ('CONTEXTUAL 3 `IMPLICIT` AttributeValueAssertion)
   | Filter'substrings      ('CONTEXTUAL 4 `IMPLICIT` SubstringFilter)
   | Filter'greaterOrEqual  ('CONTEXTUAL 5 `IMPLICIT` AttributeValueAssertion)
@@ -480,7 +482,7 @@ data Filter
   | Filter'present         ('CONTEXTUAL 7 `IMPLICIT` AttributeDescription)
   | Filter'approxMatch     ('CONTEXTUAL 8 `IMPLICIT` AttributeValueAssertion)
   | Filter'extensibleMatch ('CONTEXTUAL 9 `IMPLICIT` MatchingRuleAssertion)
-  deriving Show
+  deriving (Show,Eq)
 
 instance ASN1 Filter where
   asn1decode = with'CHOICE
@@ -534,7 +536,7 @@ type AttributeValue = OCTET_STRING
 data AttributeValueAssertion = AttributeValueAssertion
   { _AttributeValueAssertion'attributeDesc  :: AttributeDescription
   , _AttributeValueAssertion'assertionValue :: AssertionValue
-  } deriving Show
+  } deriving (Show,Eq)
 
 -- | > AssertionValue ::= OCTET STRING
 type AssertionValue = OCTET_STRING
@@ -557,7 +559,7 @@ instance ASN1 AttributeValueAssertion where
 data SubstringFilter = SubstringFilter
   { _SubstringFilter'type       :: AttributeDescription
   , _SubstringFilter'substrings :: NonEmpty Substring
-  } deriving Show
+  } deriving (Show,Eq)
 
 instance ASN1 SubstringFilter where
   asn1decodeCompOf = SubstringFilter <$> asn1decode <*> asn1decode
@@ -568,7 +570,7 @@ data Substring
   = Substring'initial ('CONTEXTUAL 0 `IMPLICIT` AssertionValue)
   | Substring'any     ('CONTEXTUAL 1 `IMPLICIT` AssertionValue)
   | Substring'final   ('CONTEXTUAL 1 `IMPLICIT` AssertionValue)
-  deriving Show
+  deriving (Show,Eq)
 
 instance ASN1 Substring where
   asn1decode = with'CHOICE
@@ -604,7 +606,7 @@ data MatchingRuleAssertion = MatchingRuleAssertion
   , _MatchingRuleAssertion'type         :: Maybe ('CONTEXTUAL 2 `IMPLICIT` AttributeDescription)
   , _MatchingRuleAssertion'matchValue   ::       ('CONTEXTUAL 3 `IMPLICIT` AssertionValue)
   , _MatchingRuleAssertion'dnAttributes :: Maybe ('CONTEXTUAL 4 `IMPLICIT` BOOLEAN_DEFAULT_FALSE)
-  } deriving Show
+  } deriving (Show,Eq)
 
 instance ASN1 MatchingRuleAssertion where
   asn1decodeCompOf = MatchingRuleAssertion <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
@@ -620,7 +622,7 @@ instance ASN1 MatchingRuleAssertion where
 -}
 
 newtype SearchResultReference = SearchResultReference (NonEmpty URI)
-  deriving Show
+  deriving (Show,Eq)
 
 instance ASN1 SearchResultReference where
   asn1defTag _ = Application 19 -- not used
@@ -639,7 +641,7 @@ instance ASN1 SearchResultReference where
 data SearchResultEntry = SearchResultEntry
   { _SearchResultEntry'objectName :: LDAPDN
   , _SearchResultEntry'attributes :: PartialAttributeList
-  } deriving Show
+  } deriving (Show,Eq)
 
 instance ASN1 SearchResultEntry where
   asn1defTag _ = Application 4
@@ -664,7 +666,7 @@ type PartialAttributeList = [PartialAttribute]
 data PartialAttribute = PartialAttribute
   { _PartialAttribute'type :: AttributeDescription
   , _PartialAttribute'vals :: SET AttributeValue
-  } deriving Show
+  } deriving (Show,Eq)
 
 instance ASN1 PartialAttribute where
   asn1decodeCompOf = PartialAttribute <$> asn1decode <*> asn1decode
@@ -742,7 +744,7 @@ data LDAPResult = LDAPResult
   , _LDAPResult'matchedDN         :: LDAPDN
   , _LDAPResult'diagnosticMessage :: LDAPString
   , _LDAPResult'referral          :: Maybe ('CONTEXTUAL 3 `IMPLICIT` Referral)
-  } deriving Show
+  } deriving (Show,Eq)
 
 {- | Referral result code  (<https://tools.ietf.org/html/rfc4511#section-4.1.10 RFC4511 Section 4.1.10>)
 

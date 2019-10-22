@@ -250,8 +250,6 @@ getASN1Decode (ASN1Decode{..}) (Just tl@(t,_,_))
   | asn1dAny || Set.member t asn1dTags  = asn1dContent (Just tl)
   | otherwise                           = pure (Unexpected tl)
 
-
-
 ----------------------------------------------------------------------------
 -- simple ASN.1 EDSL
 
@@ -263,6 +261,7 @@ implicit newtag old
   | Just oldtag <- asn1decodeIsSingleton old
   = mempty { asn1dTags    = Set.singleton newtag
            , asn1dContent = \case
+               Just tl@(curtag,_,_) | newtag /= curtag -> pure (Unexpected tl)
                Just (_,pc,sz) -> asn1dContent old (Just (oldtag,pc,sz))
                Nothing        -> asn1dContent old Nothing
            }
@@ -573,7 +572,7 @@ instance ASN1 t => ASN1 (NonEmpty t) where
 
 -- | @SET SIZE (1..MAX) OF@
 newtype SET1 x = SET1 (NonEmpty x)
-  deriving Show
+  deriving (Show,Eq)
 
 instance Newtype (SET1 x) (NonEmpty x)
 
@@ -586,7 +585,7 @@ instance ASN1 t => ASN1 (SET1 t) where
   asn1encode (SET1 (x :| xs)) = asn1encode (SET (x:xs))
 
 newtype SET x = SET [x]
-  deriving Show
+  deriving (Show,Eq)
 
 instance Newtype (SET x) [x]
 
