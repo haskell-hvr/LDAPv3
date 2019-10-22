@@ -76,6 +76,8 @@ module LDAPv3
     , UnbindRequest(..)
 
       -- ** Unsolicited Notification  (<https://tools.ietf.org/html/rfc4511#section-4.4 RFC4511 Section 4.4>)
+      --
+      -- | Unsolicited notifications are represented by an 'ExtendedResponse' message with a 'LDAPResult'MessageID' set to @0@.
 
       -- ** Search Operation  (<https://tools.ietf.org/html/rfc4511#section-4.5 RFC4511 Section 4.5>)
 
@@ -94,6 +96,44 @@ module LDAPv3
     , PartialAttributeList
     , SearchResultReference(..)
     , SearchResultDone
+
+      -- ** Modify Operation   (<https://tools.ietf.org/html/rfc4511#section-4.6 RFC4511 Section 4.6>)
+
+--  , ModifyRequest
+    , ModifyResponse
+
+      -- ** Add Operation   (<https://tools.ietf.org/html/rfc4511#section-4.7 RFC4511 Section 4.7>)
+
+--  , AddRequest
+    , AddResponse
+
+      -- ** Delete Operation   (<https://tools.ietf.org/html/rfc4511#section-4.8 RFC4511 Section 4.8>)
+
+    , DelRequest
+    , DelResponse
+
+      -- ** Modify DN Operation   (<https://tools.ietf.org/html/rfc4511#section-4.9 RFC4511 Section 4.9>)
+
+--  , ModifyDNRequest
+    , ModifyDNResponse
+
+      -- ** Compare Operation   (<https://tools.ietf.org/html/rfc4511#section-4.10 RFC4511 Section 4.10>)
+
+    , CompareRequest(..)
+    , CompareResponse
+
+      -- ** Abandon Operation   (<https://tools.ietf.org/html/rfc4511#section-4.11 RFC4511 Section 4.11>)
+
+    , AbandonRequest
+
+      -- ** Extended Operation   (<https://tools.ietf.org/html/rfc4511#section-4.12 RFC4511 Section 4.12>)
+
+    , ExtendedRequest(..)
+    , ExtendedResponse(..)
+
+      -- ** Intermediate Response  (<https://tools.ietf.org/html/rfc4511#section-4.13 RFC4511 Section 4.13>)
+
+    , IntermediateResponse(..)
 
       -- * ASN.1 Helpers
     , OCTET_STRING
@@ -194,6 +234,20 @@ data ProtocolOp
   | ProtocolOp'searchResEntry  SearchResultEntry
   | ProtocolOp'searchResDone   SearchResultDone
   | ProtocolOp'searchResRef    SearchResultReference
+--  | ProtocolOp'modifyRequest   ModifyRequest
+  | ProtocolOp'modifyResponse  ModifyResponse
+--  | ProtocolOp'addRequest      AddRequest
+  | ProtocolOp'addResponse     AddResponse
+  | ProtocolOp'delRequest      DelRequest
+  | ProtocolOp'delResponse     DelResponse
+--  | ProtocolOp'modDNRequest    ModifyDNRequest
+  | ProtocolOp'modDNResponse   ModifyDNResponse
+  | ProtocolOp'compareRequest  CompareRequest
+  | ProtocolOp'compareResponse CompareResponse
+  | ProtocolOp'abandonRequest  AbandonRequest
+  | ProtocolOp'extendedReq     ExtendedRequest
+  | ProtocolOp'extendedResp    ExtendedResponse
+  | ProtocolOp'intermediateResponse  IntermediateResponse
   deriving (Show,Eq)
 
 instance ASN1 ProtocolOp where
@@ -205,7 +259,20 @@ instance ASN1 ProtocolOp where
     , ProtocolOp'searchResEntry <$> asn1decode
     , ProtocolOp'searchResDone  <$> asn1decode
     , ProtocolOp'searchResRef   <$> asn1decode
-    -- TODO
+--  , ProtocolOp'modifyRequest  <$> asn1decode
+    , ProtocolOp'modifyResponse <$> asn1decode
+--  , ProtocolOp'addRequest     <$> asn1decode
+    , ProtocolOp'addResponse    <$> asn1decode
+    , ProtocolOp'delRequest     <$> asn1decode
+    , ProtocolOp'delResponse    <$> asn1decode
+--  , ProtocolOp'modDNRequest   <$> asn1decode
+    , ProtocolOp'modDNResponse  <$> asn1decode
+    , ProtocolOp'compareRequest <$> asn1decode
+    , ProtocolOp'compareResponse <$> asn1decode
+    , ProtocolOp'abandonRequest <$> asn1decode
+    , ProtocolOp'extendedReq    <$> asn1decode
+    , ProtocolOp'extendedResp   <$> asn1decode
+    , ProtocolOp'intermediateResponse <$> asn1decode
     ]
 
   asn1encode = \case
@@ -216,7 +283,20 @@ instance ASN1 ProtocolOp where
     ProtocolOp'searchResEntry v -> asn1encode v
     ProtocolOp'searchResDone  v -> asn1encode v
     ProtocolOp'searchResRef   v -> asn1encode v
-
+--  ProtocolOp'modifyRequest  v -> asn1encode v
+    ProtocolOp'modifyResponse v -> asn1encode v
+--  ProtocolOp'addRequest     v -> asn1encode v
+    ProtocolOp'addResponse    v -> asn1encode v
+    ProtocolOp'delRequest     v -> asn1encode v
+    ProtocolOp'delResponse    v -> asn1encode v
+--  ProtocolOp'modDNRequest   v -> asn1encode v
+    ProtocolOp'modDNResponse  v -> asn1encode v
+    ProtocolOp'compareRequest v -> asn1encode v
+    ProtocolOp'compareResponse v -> asn1encode v
+    ProtocolOp'abandonRequest v -> asn1encode v
+    ProtocolOp'extendedReq    v -> asn1encode v
+    ProtocolOp'extendedResp   v -> asn1encode v
+    ProtocolOp'intermediateResponse v -> asn1encode v
 
 ----------------------------------------------------------------------------
 
@@ -785,3 +865,136 @@ type LDAPString = ShortText
 
 -}
 type LDAPDN = LDAPString
+
+
+{- | Modify Response  (<https://tools.ietf.org/html/rfc4511#section-4.6 RFC4511 Section 4.6>)
+
+> ModifyResponse ::= [APPLICATION 7] LDAPResult
+
+-}
+type ModifyResponse = ('APPLICATION 7 `IMPLICIT` LDAPResult)
+
+{- | Add Response  (<https://tools.ietf.org/html/rfc4511#section-4.7 RFC4511 Section 4.7>)
+
+> AddResponse ::= [APPLICATION 9] LDAPResult
+
+-}
+type AddResponse = ('APPLICATION 9 `IMPLICIT` LDAPResult)
+
+{- | Delete Operation  (<https://tools.ietf.org/html/rfc4511#section-4.8 RFC4511 Section 4.8>)
+
+> DelRequest ::= [APPLICATION 10] LDAPDN
+
+-}
+type DelRequest = ('APPLICATION 10 `IMPLICIT` LDAPDN)
+
+{- | Delete Response  (<https://tools.ietf.org/html/rfc4511#section-4.8 RFC4511 Section 4.8>)
+
+> DelResponse ::= [APPLICATION 11] LDAPResult
+
+-}
+type DelResponse = ('APPLICATION 11 `IMPLICIT` LDAPResult)
+
+
+{- | Modify DN Response  (<https://tools.ietf.org/html/rfc4511#section-4.9 RFC4511 Section 4.9>)
+
+> ModifyDNResponse ::= [APPLICATION 13] LDAPResult
+
+-}
+type ModifyDNResponse = ('APPLICATION 13 `IMPLICIT` LDAPResult)
+
+
+{- | Compare Operation  (<https://tools.ietf.org/html/rfc4511#section-4.10 RFC4511 Section 4.10>)
+
+> CompareRequest ::= [APPLICATION 14] SEQUENCE {
+>      entry           LDAPDN,
+>      ava             AttributeValueAssertion }
+
+-}
+data CompareRequest = CompareRequest
+  { _CompareRequest'entry :: LDAPDN
+  , _CompareRequest'ava   :: AttributeValueAssertion
+  } deriving (Show,Eq)
+
+instance ASN1 CompareRequest where
+  asn1defTag _ = Application 14
+  asn1decodeCompOf = CompareRequest <$> asn1decode <*> asn1decode
+  asn1encodeCompOf (CompareRequest v1 v2) = asn1encodeCompOf (v1,v2)
+
+{- | Compare Response  (<https://tools.ietf.org/html/rfc4511#section-4.10 RFC4511 Section 4.10>)
+
+> CompareResponse ::= [APPLICATION 15] LDAPResult
+
+-}
+type CompareResponse = ('APPLICATION 15 `IMPLICIT` LDAPResult)
+
+
+{- | Abandon Operation  (<https://tools.ietf.org/html/rfc4511#section-4.11 RFC4511 Section 4.11>)
+
+> AbandonRequest ::= [APPLICATION 16] MessageID
+
+-}
+type AbandonRequest = ('APPLICATION 16 `IMPLICIT` MessageID)
+
+{- | Extended Request  (<https://tools.ietf.org/html/rfc4511#section-4.12 RFC4511 Section 4.12>)
+
+> ExtendedRequest ::= [APPLICATION 23] SEQUENCE {
+>      requestName      [0] LDAPOID,
+>      requestValue     [1] OCTET STRING OPTIONAL }
+
+-}
+data ExtendedRequest = ExtendedRequest
+  { _ExtendedRequest'responseName  ::       ('CONTEXTUAL 0 `IMPLICIT` LDAPOID)
+  , _ExtendedRequest'responseValue :: Maybe ('CONTEXTUAL 1 `IMPLICIT` OCTET_STRING)
+  } deriving (Show,Eq)
+
+instance ASN1 ExtendedRequest where
+  asn1defTag _ = Application 23
+  asn1decodeCompOf = ExtendedRequest <$> asn1decode <*> asn1decode
+  asn1encodeCompOf (ExtendedRequest v1 v2) = asn1encodeCompOf (v1,v2)
+
+{- | Extended Response  (<https://tools.ietf.org/html/rfc4511#section-4.12 RFC4511 Section 4.12>)
+
+> ExtendedResponse ::= [APPLICATION 24] SEQUENCE {
+>      COMPONENTS OF LDAPResult,
+>      responseName     [10] LDAPOID OPTIONAL,
+>      responseValue    [11] OCTET STRING OPTIONAL }
+
+-}
+data ExtendedResponse = ExtendedResponse
+  { _ExtendedResponse'LDAPResult    :: LDAPResult
+  , _ExtendedResponse'responseName  :: Maybe ('CONTEXTUAL 10 `IMPLICIT` LDAPOID)
+  , _ExtendedResponse'responseValue :: Maybe ('CONTEXTUAL 11 `IMPLICIT` OCTET_STRING)
+  } deriving (Show,Eq)
+
+instance ASN1 ExtendedResponse where
+  asn1defTag _ = Application 24
+  asn1decodeCompOf = do
+    _ExtendedResponse'LDAPResult    <- asn1decodeCompOf
+    _ExtendedResponse'responseName  <- asn1decode
+    _ExtendedResponse'responseValue <- asn1decode
+    pure ExtendedResponse{..}
+
+  asn1encodeCompOf (ExtendedResponse{..})
+    = enc'SEQUENCE_COMPS [ asn1encodeCompOf _ExtendedResponse'LDAPResult
+                         , asn1encode       _ExtendedResponse'responseName
+                         , asn1encode       _ExtendedResponse'responseValue
+                         ]
+
+
+{- | Intermediate Response  (<https://tools.ietf.org/html/rfc4511#section-4.13 RFC4511 Section 4.13>)
+
+> IntermediateResponse ::= [APPLICATION 25] SEQUENCE {
+>         responseName     [0] LDAPOID OPTIONAL,
+>         responseValue    [1] OCTET STRING OPTIONAL }
+
+-}
+data IntermediateResponse = IntermediateResponse
+  { _IntermediateResponse'responseName  :: Maybe ('CONTEXTUAL 0 `IMPLICIT` LDAPOID)
+  , _IntermediateResponse'responseValue :: Maybe ('CONTEXTUAL 1 `IMPLICIT` OCTET_STRING)
+  } deriving (Show,Eq)
+
+instance ASN1 IntermediateResponse where
+  asn1defTag _ = Application 25
+  asn1decodeCompOf = IntermediateResponse <$> asn1decode <*> asn1decode
+  asn1encodeCompOf (IntermediateResponse v1 v2) = asn1encodeCompOf (v1,v2)
