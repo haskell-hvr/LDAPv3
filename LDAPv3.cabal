@@ -76,3 +76,8 @@ test-suite LDAPv3
 
   build-depends:
     , LDAPv3
+
+    , tasty            ^>= 1.2.3
+    , tasty-quickcheck ^>= 0.10.1
+    , tasty-hunit      ^>= 0.10.0
+    , base-encoding    ^>= 0.1.0
