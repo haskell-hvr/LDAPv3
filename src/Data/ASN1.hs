@@ -39,7 +39,7 @@ module Data.ASN1
     , OCTET_STRING
     , NULL
     , BOOLEAN
-    , BOOLEAN_DEFAULT_FALSE
+    , BOOLEAN_DEFAULT_FALSE(..)
     , OPTIONAL
 
     , SET(..)
@@ -476,31 +476,63 @@ instance Newtype (ENUMERATED x) x
 
 class ASN1 t where
   asn1decode :: ASN1Decode t
-  asn1decode = with'SEQUENCE asn1decodeCompOf
+  asn1decode = with'Constructed "SEQUENCE" (asn1defTag (Proxy :: Proxy t)) asn1decodeCompOf
 
   asn1decodeCompOf :: ASN1Decode t
   asn1decodeCompOf = asn1fail "asn1decodeCompOf not implemented for type"
 
   asn1encode :: t -> ASN1Encode Word64
-  asn1encode = wraptag (Universal 16) . asn1encodeCompOf
+  asn1encode = wraptag (asn1defTag (Proxy :: Proxy t)) . asn1encodeCompOf
 
   -- constructed contents
   asn1encodeCompOf :: t -> ASN1Encode Word64
   asn1encodeCompOf = error "asn1encode(CompOf) not implemented for type"
 
+  -- default-tag
+  asn1defTag :: Proxy t -> Tag
+  asn1defTag _ = Universal 16
+
   {-# MINIMAL (asn1decode | asn1decodeCompOf), (asn1encode | asn1encodeCompOf) #-}
+
+instance (ASN1 t1, ASN1 t2) => ASN1 (t1,t2) where
+  asn1encodeCompOf (v1,v2) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2]
+  asn1decodeCompOf = (,) <$> asn1decode <*> asn1decode
+
+instance (ASN1 t1, ASN1 t2, ASN1 t3) => ASN1 (t1,t2,t3) where
+  asn1encodeCompOf (v1,v2,v3) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3]
+  asn1decodeCompOf = (,,) <$> asn1decode <*> asn1decode <*> asn1decode
+
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4) => ASN1 (t1,t2,t3,t4) where
+  asn1encodeCompOf (v1,v2,v3,v4) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4]
+  asn1decodeCompOf = (,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
+
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5) => ASN1 (t1,t2,t3,t4,t5) where
+  asn1encodeCompOf (v1,v2,v3,v4,v5) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5]
+  asn1decodeCompOf = (,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
+
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6) => ASN1 (t1,t2,t3,t4,t5,t6) where
+  asn1encodeCompOf (v1,v2,v3,v4,v5,v6) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5, asn1encode v6]
+  asn1decodeCompOf = (,,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
+
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7) => ASN1 (t1,t2,t3,t4,t5,t6,t7) where
+  asn1encodeCompOf (v1,v2,v3,v4,v5,v6,v7) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5, asn1encode v6, asn1encode v7]
+  asn1decodeCompOf = (,,,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
+
 
 type OCTET_STRING = ByteString
 
 instance ASN1 ByteString where
+  asn1defTag _ = Universal 4
   asn1decode = dec'OCTETSTRING
   asn1encode = enc'OCTETSTRING
 
 instance ASN1 SBS.ShortByteString where
+  asn1defTag _ = Universal 4
   asn1decode = SBS.toShort <$> dec'OCTETSTRING
   asn1encode = enc'OCTETSTRING . SBS.fromShort -- TODO: optimize
 
 instance ASN1 ShortText where
+  asn1defTag _ = Universal 4
   asn1decode = do
     bs <- dec'OCTETSTRING
     maybe (asn1fail "OCTECT STRING contained invalid UTF-8") pure (TS.fromByteString bs)
@@ -509,18 +541,21 @@ instance ASN1 ShortText where
 type BOOLEAN = Bool
 
 instance ASN1 Bool where
+  asn1defTag _ = Universal 1
   asn1decode = dec'BOOLEAN
   asn1encode = enc'BOOLEAN
 
 type OPTIONAL x = Maybe x
 
 instance ASN1 t => ASN1 (Maybe t) where
+  asn1defTag _ = asn1defTag (Proxy :: Proxy t)
   asn1decode = with'OPTIONAL asn1decode
 
   asn1encode Nothing  = empty'ASN1Encode
   asn1encode (Just v) = asn1encode v
 
 instance Enumerated t => ASN1 (ENUMERATED t) where
+  asn1defTag _ = Universal 10
   asn1decode = ENUMERATED <$> dec'ENUMERATED
   asn1encode (ENUMERATED v) = enc'ENUMERATED v
 
@@ -543,6 +578,7 @@ newtype SET1 x = SET1 (NonEmpty x)
 instance Newtype (SET1 x) (NonEmpty x)
 
 instance ASN1 t => ASN1 (SET1 t) where
+  asn1defTag _ = Universal 17
   asn1decode = asn1decode >>= \case
                  SET [] -> asn1fail "SET must be non-empty"
                  SET (x:xs) -> pure (SET1 (x :| xs))
@@ -555,26 +591,32 @@ newtype SET x = SET [x]
 instance Newtype (SET x) [x]
 
 instance ASN1 t => ASN1 (SET t) where
+  asn1defTag _ = Universal 17
   asn1decode = SET <$> with'SET_OF asn1decode
   asn1encode (SET vs) = enc'SET (map asn1encode vs)
 
 instance ASN1 Integer where
+  asn1defTag _ = Universal 2
   asn1decode = dec'INTEGER
   asn1encode = enc'INTEGER
 
 instance ASN1 Int64 where
+  asn1defTag _ = Universal 2
   asn1decode = dec'Int64
   asn1encode = enc'Int64
 
 instance (UIntBounds lb ub t, Integral t) => ASN1 (UInt lb ub t) where
+  asn1defTag _ = Universal 2
   asn1decode = dec'UInt
   asn1encode = enc'UInt
 
 instance forall tag t . (KnownTag tag, ASN1 t) => ASN1 (IMPLICIT tag t) where
+  asn1defTag _ = tagVal (Proxy :: Proxy tag)
   asn1decode = IMPLICIT <$> implicit (tagVal (Proxy :: Proxy tag)) asn1decode
   asn1encode (IMPLICIT v) = retag (tagVal (Proxy :: Proxy tag)) (asn1encode v)
 
 instance forall tag t . (KnownTag tag, ASN1 t) => ASN1 (EXPLICIT tag t) where
+  asn1defTag _ = tagVal (Proxy :: Proxy tag)
   asn1decode = EXPLICIT <$> explicit (tagVal (Proxy :: Proxy tag)) asn1decode
   asn1encode (EXPLICIT v) = wraptag (tagVal (Proxy :: Proxy tag)) (asn1encode v)
 
@@ -582,6 +624,7 @@ type NULL = ()
 
 -- | denotes @NULL@
 instance ASN1 () where
+  asn1defTag _ = Universal 5
   asn1decode = dec'NULL
   asn1encode () = enc'NULL
 
@@ -592,6 +635,7 @@ data BOOLEAN_DEFAULT_FALSE = BOOL_TRUE
   deriving (Eq,Ord,Show)
 
 instance ASN1 BOOLEAN_DEFAULT_FALSE where
+  asn1defTag _ = Universal 1
   asn1decode = do
     b <- dec'BOOLEAN
     case b of

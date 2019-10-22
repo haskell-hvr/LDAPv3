@@ -97,6 +97,7 @@ module LDAPv3
 
       -- * ASN.1 Helpers
     , OCTET_STRING
+    , BOOLEAN_DEFAULT_FALSE(..)
 
       -- ** ASN.1 type-level tagging
     , EXPLICIT(..)
@@ -162,14 +163,8 @@ instance Bin.Binary LDAPMessage where
   get = toBinaryGet asn1decode
 
 instance ASN1 LDAPMessage where
-  asn1decode = with'SEQUENCE $
-    LDAPMessage <$> asn1decode <*> asn1decode <*> asn1decode
-
-  asn1encode (LDAPMessage v1 v2 v3)
-    = enc'SEQUENCE [ asn1encode v1
-                   , asn1encode v2
-                   , asn1encode v3
-                   ]
+  asn1decodeCompOf = LDAPMessage <$> asn1decode <*> asn1decode <*> asn1decode
+  asn1encodeCompOf (LDAPMessage v1 v2 v3) = asn1encodeCompOf (v1,v2,v3)
 
 {- | Message ID (<https://tools.ietf.org/html/rfc4511#section-4.1.1.1 RFC4511 Section 4.1.1.1>)
 
@@ -278,15 +273,9 @@ data BindRequest = BindRequest
   } deriving Show
 
 instance ASN1 BindRequest where
-  asn1decode = implicit (Application 0) $ with'SEQUENCE $
-    BindRequest <$> asn1decode <*> asn1decode <*> asn1decode
-
-  asn1encode (BindRequest v1 v2 v3)
-    = retag (Application 0) $
-      enc'SEQUENCE [ asn1encode v1
-                   , asn1encode v2
-                   , asn1encode v3
-                   ]
+  asn1defTag _ = Application 0
+  asn1decodeCompOf = BindRequest <$> asn1decode <*> asn1decode <*> asn1decode
+  asn1encodeCompOf (BindRequest v1 v2 v3) = asn1encodeCompOf (v1,v2,v3)
 
 ----------------------------------------------------------------------------
 
@@ -327,12 +316,8 @@ data SaslCredentials = SaslCredentials
   } deriving Show
 
 instance ASN1 SaslCredentials where
-  asn1decode = with'SEQUENCE $ SaslCredentials <$> asn1decode <*> asn1decode
-
-  asn1encode (SaslCredentials v1 v2)
-    = enc'SEQUENCE [ asn1encode v1
-                   , asn1encode v2
-                   ]
+  asn1decodeCompOf = SaslCredentials <$> asn1decode <*> asn1decode
+  asn1encodeCompOf (SaslCredentials v1 v2) = asn1encodeCompOf (v1,v2)
 
 ----------------------------------------------------------------------------
 
@@ -350,16 +335,16 @@ data BindResponse = BindResponse
   } deriving Show
 
 instance ASN1 BindResponse where
-  asn1decode = implicit (Application 1) $ with'SEQUENCE $ do
+  asn1defTag _ = Application 1
+  asn1decodeCompOf = do
     _BindResponse'LDAPResult      <- asn1decodeCompOf
     _BindResponse'serverSaslCreds <- asn1decode
     pure BindResponse{..}
 
-  asn1encode (BindResponse{..})
-    = retag (Application 1) $
-      enc'SEQUENCE [ asn1encodeCompOf _BindResponse'LDAPResult
-                   , asn1encode       _BindResponse'serverSaslCreds
-                   ]
+  asn1encodeCompOf (BindResponse{..})
+    = enc'SEQUENCE_COMPS [ asn1encodeCompOf _BindResponse'LDAPResult
+                         , asn1encode       _BindResponse'serverSaslCreds
+                         ]
 
 ----------------------------------------------------------------------------
 
@@ -373,6 +358,7 @@ data UnbindRequest = UnbindRequest
   deriving Show
 
 instance ASN1 UnbindRequest where
+  asn1defTag _ = Application 2 -- not used
   asn1decode = implicit (Application 2) $ (UnbindRequest <$ dec'NULL)
   asn1encode UnbindRequest = retag (Application 2) enc'NULL
 
@@ -554,12 +540,8 @@ data AttributeValueAssertion = AttributeValueAssertion
 type AssertionValue = OCTET_STRING
 
 instance ASN1 AttributeValueAssertion where
-  asn1decode = with'SEQUENCE $ AttributeValueAssertion <$> asn1decode <*> asn1decode
-
-  asn1encode (AttributeValueAssertion v1 v2)
-    = enc'SEQUENCE [ asn1encode v1
-                   , asn1encode v2
-                   ]
+  asn1decodeCompOf = AttributeValueAssertion <$> asn1decode <*> asn1decode
+  asn1encodeCompOf (AttributeValueAssertion v1 v2) = asn1encodeCompOf (v1,v2)
 
 {- | Substring 'Filter'  (<https://tools.ietf.org/html/rfc4511#section-4.5.1.7.2 RFC4511 Section 4.5.1.7.2>)
 
@@ -578,12 +560,8 @@ data SubstringFilter = SubstringFilter
   } deriving Show
 
 instance ASN1 SubstringFilter where
-  asn1decode = with'SEQUENCE $ SubstringFilter <$> asn1decode <*> asn1decode
-
-  asn1encode (SubstringFilter v1 v2)
-    = enc'SEQUENCE [ asn1encode v1
-                   , asn1encode v2
-                   ]
+  asn1decodeCompOf = SubstringFilter <$> asn1decode <*> asn1decode
+  asn1encodeCompOf (SubstringFilter v1 v2) = asn1encodeCompOf (v1,v2)
 
 -- | See 'SubstringFilter'
 data Substring
@@ -629,15 +607,8 @@ data MatchingRuleAssertion = MatchingRuleAssertion
   } deriving Show
 
 instance ASN1 MatchingRuleAssertion where
-  asn1decode = with'SEQUENCE $
-    MatchingRuleAssertion <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
-
-  asn1encode (MatchingRuleAssertion v1 v2 v3 v4)
-    = enc'SEQUENCE [ asn1encode v1
-                   , asn1encode v2
-                   , asn1encode v3
-                   , asn1encode v4
-                   ]
+  asn1decodeCompOf = MatchingRuleAssertion <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
+  asn1encodeCompOf (MatchingRuleAssertion v1 v2 v3 v4) = asn1encodeCompOf (v1,v2,v3,v4)
 
 ----------------------------------------------------------------------------
 
@@ -652,6 +623,7 @@ newtype SearchResultReference = SearchResultReference (NonEmpty URI)
   deriving Show
 
 instance ASN1 SearchResultReference where
+  asn1defTag _ = Application 19 -- not used
   asn1decode = SearchResultReference <$> (Application 19 `implicit` asn1decode)
   asn1encode (SearchResultReference v) = retag (Application 19) $ asn1encode v
 
@@ -670,14 +642,9 @@ data SearchResultEntry = SearchResultEntry
   } deriving Show
 
 instance ASN1 SearchResultEntry where
-  asn1decode = implicit (Application 4) $ with'SEQUENCE $
-    SearchResultEntry <$> asn1decode <*> asn1decode
-
-  asn1encode (SearchResultEntry v1 v2)
-    = retag (Application 4) $
-      enc'SEQUENCE [ asn1encode v1
-                   , asn1encode v2
-                   ]
+  asn1defTag _ = Application 4
+  asn1decodeCompOf = SearchResultEntry <$> asn1decode <*> asn1decode
+  asn1encodeCompOf (SearchResultEntry v1 v2) = asn1encodeCompOf (v1,v2)
 
 {- | See 'SearchResultEntry'
 
@@ -700,11 +667,8 @@ data PartialAttribute = PartialAttribute
   } deriving Show
 
 instance ASN1 PartialAttribute where
-  asn1decode = with'SEQUENCE $ PartialAttribute <$> asn1decode <*> asn1decode
-  asn1encode (PartialAttribute v1 v2)
-    = enc'SEQUENCE [ asn1encode v1
-                   , asn1encode v2
-                   ]
+  asn1decodeCompOf = PartialAttribute <$> asn1decode <*> asn1decode
+  asn1encodeCompOf (PartialAttribute v1 v2) = asn1encodeCompOf (v1,v2)
 
 ----------------------------------------------------------------------------
 
@@ -802,13 +766,7 @@ instance ASN1 LDAPResult where
     _LDAPResult'diagnosticMessage <- asn1decode
     _LDAPResult'referral          <- asn1decode
     pure LDAPResult{..}
-
-  asn1encodeCompOf (LDAPResult v1 v2 v3 v4)
-    = enc'SEQUENCE_COMPS [ asn1encode v1
-                         , asn1encode v2
-                         , asn1encode v3
-                         , asn1encode v4
-                         ]
+  asn1encodeCompOf (LDAPResult v1 v2 v3 v4) = asn1encodeCompOf (v1,v2,v3,v4)
 
 {- | String Type  (<https://tools.ietf.org/html/rfc4511#section-4.1.2 RFC4511 Section 4.1.2>)
 
