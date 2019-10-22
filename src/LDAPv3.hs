@@ -73,7 +73,7 @@ module LDAPv3
 
       -- ** Unbind Operation  (<https://tools.ietf.org/html/rfc4511#section-4.3 RFC4511 Section 4.3>)
 
-    , UnbindRequest(..)
+    , UnbindRequest
 
       -- ** Unsolicited Notification  (<https://tools.ietf.org/html/rfc4511#section-4.4 RFC4511 Section 4.4>)
       --
@@ -322,12 +322,8 @@ data Control = Control
   } deriving (Show,Eq)
 
 instance ASN1 Control where
-  asn1decode = with'SEQUENCE $ Control <$> asn1decode <*> asn1decode <*> asn1decode
-  asn1encode (Control v1 v2 v3)
-    = enc'SEQUENCE [ asn1encode v1
-                   , asn1encode v2
-                   , asn1encode v3
-                   ]
+  asn1decodeCompOf = Control <$> asn1decode <*> asn1decode <*> asn1decode
+  asn1encodeCompOf (Control v1 v2 v3) = asn1encodeCompOf (v1,v2,v3)
 
 {- | Object identifier  (<https://tools.ietf.org/html/rfc4511#section-4.1.2 RFC4511 Section 4.1.2>)
 
@@ -435,14 +431,7 @@ instance ASN1 BindResponse where
 > UnbindRequest ::= [APPLICATION 2] NULL
 
 -}
-
-data UnbindRequest = UnbindRequest
-  deriving (Show,Eq)
-
-instance ASN1 UnbindRequest where
-  asn1defTag _ = Application 2 -- not used
-  asn1decode = implicit (Application 2) $ (UnbindRequest <$ dec'NULL)
-  asn1encode UnbindRequest = retag (Application 2) enc'NULL
+type UnbindRequest = ('APPLICATION 2 `IMPLICIT` NULL)
 
 ----------------------------------------------------------------------------
 
@@ -649,7 +638,7 @@ instance ASN1 SubstringFilter where
 data Substring
   = Substring'initial ('CONTEXTUAL 0 `IMPLICIT` AssertionValue)
   | Substring'any     ('CONTEXTUAL 1 `IMPLICIT` AssertionValue)
-  | Substring'final   ('CONTEXTUAL 1 `IMPLICIT` AssertionValue)
+  | Substring'final   ('CONTEXTUAL 2 `IMPLICIT` AssertionValue)
   deriving (Show,Eq)
 
 instance ASN1 Substring where

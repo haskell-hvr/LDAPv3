@@ -1,3 +1,19 @@
+-- Copyright (c) 2019  Herbert Valerio Riedel <hvr@gnu.org>
+--
+--  This file is free software: you may copy, redistribute and/or modify it
+--  under the terms of the GNU General Public License as published by the
+--  Free Software Foundation, either version 2 of the License, or (at your
+--  option) any later version.
+--
+--  This file is distributed in the hope that it will be useful, but
+--  WITHOUT ANY WARRANTY; without even the implied warranty of
+--  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+--  General Public License for more details.
+--
+--  You should have received a copy of the GNU General Public License
+--  along with this program (see `LICENSE`).  If not, see
+--  <https://www.gnu.org/licenses/old-licenses/gpl-2.0.html>.
+
 module LDAPv3.ResultCode (ResultCode(..)) where
 
 import           Common
@@ -108,7 +124,7 @@ data ResultCode
     | ResultCode'affectsMultipleDSAs
       -- 72-79 unused --
     | ResultCode'other
-    deriving (Show,Eq,Ord,Enum)
+    deriving (Show,Eq,Ord,Bounded,Enum)
 
 
 instance ASN1 ResultCode where

@@ -391,7 +391,7 @@ unitTests = testGroup "Reference samples"
     , ( "unbindRequest"
       , b16"30 05 02 01 03 42 00"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 3
-                    , _LDAPMessage'protocolOp = ProtocolOp'unbindRequest UnbindRequest
+                    , _LDAPMessage'protocolOp = ProtocolOp'unbindRequest (IMPLICIT ())
                     , _LDAPMessage'controls = Nothing
                     }
       )

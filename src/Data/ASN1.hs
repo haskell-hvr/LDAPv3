@@ -70,6 +70,7 @@ import           Data.Int.Subtypes
 import           Data.Binary           as Bin
 import           Data.Binary.Get       as Bin
 import           Data.Binary.Put       as Bin
+import           Data.Bool             (bool)
 import qualified Data.ByteString       as BS
 import qualified Data.ByteString.Short as SBS
 import           Data.Set              (Set)
@@ -252,6 +253,18 @@ getASN1Decode (ASN1Decode{..}) (Just tl@(t,_,_))
 
 ----------------------------------------------------------------------------
 -- simple ASN.1 EDSL
+
+-- bind-like transform
+transformVia :: ASN1Decode x -> (x -> Either String y) -> ASN1Decode y
+transformVia old f
+  = old { asn1dContent = \mtl -> do
+            asn1dContent old mtl >>= \case
+              Consumed lo x -> case f x of
+                                 Left e  -> fail e
+                                 Right y -> pure (Consumed lo y)
+              Unexpected u  -> pure (Unexpected u)
+              UnexpectedEOF -> pure UnexpectedEOF
+        }
 
 explicit :: Tag -> ASN1Decode x -> ASN1Decode x
 explicit t body = with'Constructed (show t ++ " EXPLICIT") t body
@@ -634,11 +647,7 @@ data BOOLEAN_DEFAULT_FALSE = BOOL_TRUE
   deriving (Eq,Ord,Show)
 
 instance ASN1 BOOLEAN_DEFAULT_FALSE where
-  asn1defTag _ = Universal 1
-  asn1decode = do
-    b <- dec'BOOLEAN
-    case b of
-      True  -> pure BOOL_TRUE
-      False -> asn1fail "FALSE encountered despite 'BOOLEAN DEFAULT FALSE'"
-
+  asn1defTag _ = Universal 1 -- not used
+  asn1decode = dec'BOOLEAN `transformVia`
+               bool (Left "FALSE encountered despite 'BOOLEAN DEFAULT FALSE'") (Right BOOL_TRUE)
   asn1encode BOOL_TRUE = asn1encode True
