@@ -1,4 +1,4 @@
--- Copyright (c) 2019  Herbert Valerio Riedel <hvr@gnu.org>
+-- Copyright (c) 2018-2019  Herbert Valerio Riedel <hvr@gnu.org>
 --
 --  This file is free software: you may copy, redistribute and/or modify it
 --  under the terms of the GNU General Public License as published by the
@@ -25,15 +25,30 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 
-module Data.ASN1.Prim where
+module Data.ASN1.Prim
+    ( TagPC(..)
+    , TL
+    , Tag(..)
+    , TagK(..), KnownTag(..)
+    , EncodingRule(..)
+    , isolate64
+
+    , putTagLength
+    , getTagLength
+
+    , getVarInt64
+    , putVarInt64
+    , asPrimitive
+
+    , getVarInteger
+    , putVarInteger
+    ) where
 
 import           Common
 
 import           Data.Binary          as Bin
 import           Data.Binary.Get      as Bin
 import           Data.Binary.Put      as Bin
-import qualified Data.ByteString      as BS
-import qualified Data.ByteString.Lazy as BSL
 
 data TagPC
   = Primitive
@@ -45,11 +60,6 @@ data EncodingRule
   | CER
   | DER
   deriving Eq
-
-runIsolatedGet :: Get a -> ByteString -> Either (BSL.ByteString, ByteOffset, String) (BSL.ByteString, ByteOffset, a)
-runIsolatedGet p bs
-  | False      = Bin.runGetOrFail p (BSL.fromStrict bs)
-  | otherwise  = Bin.runGetOrFail (Bin.isolate (BS.length bs) p) (BSL.fromStrict bs)
 
 isolate64 :: Word64 -> Get a -> Get a
 isolate64 sz64 act
@@ -198,12 +208,6 @@ asPrimitive _ (_,_,Nothing)         = fail "indefinite length not allowed"
 asPrimitive _ (_,Constructed,_)     = fail "must be primitive"
 asPrimitive f (_,Primitive,Just sz) = f sz
 
-{-# INLINE inside #-}
-inside :: Ord a => a -> (a, a) -> Bool
-x `inside` (lb,ub)
-  | lb > ub = error "inside: unsatifiable range"
-  | otherwise = lb <= x && x <= ub
-
 ----------------------------------------------------------------------------
 
 getInt24be :: Get Int32
@@ -292,6 +296,7 @@ splitWord64 i
 
 ----------------------------------------------------------------------------
 
+-- | ASN.1 Tag
 data Tag = Universal   { tagNum :: !Word64 }
          | Application { tagNum :: !Word64 }
          | Contextual  { tagNum :: !Word64 }
@@ -307,6 +312,7 @@ instance Show Tag where
 
 ----------------------------------------------------------------------------
 
+-- | Type-level promoted 'Tag'
 data TagK = UNIVERSAL   Nat
           | APPLICATION Nat
           | CONTEXTUAL  Nat

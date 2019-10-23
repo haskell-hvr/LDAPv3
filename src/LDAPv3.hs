@@ -21,7 +21,15 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TypeOperators              #-}
 
--- | This module provides a pure Haskell implementation of the /Lightweight Directory Access Protocol (LDAP)/ version 3.
+-- | This module provides a pure Haskell implementation of the /Lightweight Directory Access Protocol (LDAP)/ version 3 as specified in <https://tools.ietf.org/html/rfc4511 RFC4511>.
+--
+-- Serializing and deserializing to and from the wire <https://en.wikipedia.org/wiki/ASN.1 ASN.1> encoding is provided via the 'Bin.Binary' instance of 'LDAPMessage'. For the purpose of implementing network clients and servers, the operations
+--
+-- * 'Bin.encode'
+-- * 'Data.Binary.Get.runGetIncremental'
+--
+-- are most useful.
+--
 module LDAPv3
     ( -- * LDAPv3 Protocol data structures
       --
@@ -78,7 +86,7 @@ module LDAPv3
 
       -- ** Unsolicited Notification  (<https://tools.ietf.org/html/rfc4511#section-4.4 RFC4511 Section 4.4>)
       --
-      -- | Unsolicited notifications are represented by an 'ExtendedResponse' message with a 'LDAPResult'MessageID' set to @0@.
+      -- | Unsolicited notifications are represented by an 'ExtendedResponse' message with its 'MessageID' set to @0@.
 
       -- ** Search Operation  (<https://tools.ietf.org/html/rfc4511#section-4.5 RFC4511 Section 4.5>)
 
@@ -140,6 +148,7 @@ module LDAPv3
     , IntermediateResponse(..)
 
       -- * ASN.1 Helpers
+    , NULL
     , OCTET_STRING
     , BOOLEAN_DEFAULT_FALSE(..)
     , SET(..)
@@ -204,6 +213,7 @@ data LDAPMessage = LDAPMessage
   , _LDAPMessage'controls   :: Maybe ('CONTEXTUAL 0 `IMPLICIT` Controls)
   } deriving (Generic,Show,Eq)
 
+-- | Encodes to\/from ASN.1 as per <https://tools.ietf.org/html/rfc4511#section-5.1 RFC4511 Section 5.1>
 instance Bin.Binary LDAPMessage where
   put = void . toBinaryPut . asn1encode
   get = toBinaryGet asn1decode
@@ -651,6 +661,12 @@ instance ASN1 AttributeValueAssertion where
 >           final   [2] AssertionValue } -- can occur at most once
 >      }
 
+__NOTE__: The additional invariants imposed on the ordering and occurence counts of the @initial@ and @final@ entries MUST currently be enforced by the consumer of this library. Future versions of this library might change to enforce these invariants at the type-level.
+
+Specifically, the invariant stated by the specification is:
+
+/There SHALL be at most one @initial@ and at most one @final@ in the @substrings@ of a SubstringFilter.  If @initial@ is present, it SHALL be the first element of @substrings@.  If @final@ is present, it SHALL be the last element of @substrings@./
+
 -}
 data SubstringFilter = SubstringFilter
   { _SubstringFilter'type       :: AttributeDescription
@@ -665,9 +681,9 @@ instance ASN1 SubstringFilter where
 
 -- | See 'SubstringFilter'
 data Substring
-  = Substring'initial ('CONTEXTUAL 0 `IMPLICIT` AssertionValue)
+  = Substring'initial ('CONTEXTUAL 0 `IMPLICIT` AssertionValue) -- ^ may occur at most once; must be first element if present
   | Substring'any     ('CONTEXTUAL 1 `IMPLICIT` AssertionValue)
-  | Substring'final   ('CONTEXTUAL 2 `IMPLICIT` AssertionValue)
+  | Substring'final   ('CONTEXTUAL 2 `IMPLICIT` AssertionValue) -- ^ may occur at most once; must be last element if present
   deriving (Generic,Show,Eq)
 
 instance NFData Substring

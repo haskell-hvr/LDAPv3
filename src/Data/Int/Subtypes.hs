@@ -1,4 +1,4 @@
--- Copyright (c) 2019  Herbert Valerio Riedel <hvr@gnu.org>
+-- Copyright (c) 2018-2019  Herbert Valerio Riedel <hvr@gnu.org>
 --
 --  This file is free software: you may copy, redistribute and/or modify it
 --  under the terms of the GNU General Public License as published by the
@@ -38,15 +38,22 @@ import           Common
 
 import           Data.Coerce (coerce)
 
+-- | Unsigned integer sub-type
 newtype UInt (lb :: Nat) (ub :: Nat) t = UInt t
   deriving (Eq,Ord)
 
+-- | Signed integer sub-type
+--
+-- __NOTE__: Due to lack of negative type-level integer literals the
+-- lower bound is negated, i.e. it expresses a negative magnitude
 newtype SInt (nlb :: Nat) (ub :: Nat) t = SInt t
   deriving (Eq,Ord)
 
+-- | Coerce integer sub-type into its base-type
 fromUInt :: UInt lb ub t -> t
 fromUInt (UInt i) = i
 
+-- | Coerce integer sub-type into its base-type
 fromSInt :: SInt nlb ub t -> t
 fromSInt (SInt i) = i
 
@@ -64,9 +71,11 @@ instance forall nlb ub t . Show t => Show (SInt nlb ub t) where
   show      = coerce (show :: t -> String)
   showsPrec = coerce (showsPrec :: Int -> t -> ShowS)
 
+-- | Constraint encoding type-level invariants for 'UInt'
 type UIntBounds lb ub t = ( KnownNat lb, KnownNat ub, lb <= ub
                           , IsBelowMaxBound ub (IntBaseType t) ~ 'True)
 
+-- | Constraint encoding type-level invariants for 'SInt'
 type SIntBounds nlb ub t = ( KnownNat nlb, KnownNat ub
                           , IsAboveMinBoundNeg nlb (IntBaseType t) ~ 'True
                           , IsBelowMaxBound ub (IntBaseType t) ~ 'True)
@@ -101,6 +110,9 @@ uintFromInteger i
   where
     i' = UInt (fromInteger i) :: UInt lb ub t
 
+-- | Try to coerce a base-type into its 'UInt' sub-type
+--
+-- If out of range, @'Left' 'Underflow'@ or @'Right' 'Overflow'@ will be returned.
 toUInt :: forall lb ub t . (UIntBounds lb ub t, Num t, Ord t) => t -> Either ArithException (UInt lb ub t)
 toUInt i
   | i' < minBound = Left Underflow
@@ -147,6 +159,9 @@ sintFromInteger i
   where
     i' = SInt (fromInteger i) :: SInt nlb ub t
 
+-- | Try to coerce a base-type into its 'SInt' sub-type
+--
+-- If out of range, @'Left' 'Underflow'@ or @'Right' 'Overflow'@ will be returned.
 toSInt :: forall nlb ub t . (SIntBounds nlb ub t, Num t, Ord t) => t -> Either ArithException (SInt nlb ub t)
 toSInt i
   | i' < minBound = Left Underflow

@@ -6,11 +6,14 @@ synopsis:            Lightweight Directory Access Protocol (LDAP) version 3
 license:             GPL-2.0-or-later
 license-file:        LICENSE
 author:              Herbert Valerio Riedel
+copyright:           © 2018-2019 Herbert Valerio Riedel
 maintainer:          hvr@gnu.org
 bug-reports:         https://github.com/hvr/LDAPv3/issues
 category:            Network
 description:
--- TODO
+  This library provides a pure Haskell implementation of the /Lightweight Directory Access Protocol (LDAP)/ version 3 as specified in <https://tools.ietf.org/html/rfc4511 RFC4511>.
+  .
+  Serializing and deserializing to and from the wire <https://en.wikipedia.org/wiki/ASN.1 ASN.1> encoding for the purpose of implementing network clients and servers is supported via 'Binary' instances (see <//hackage.haskell.org/package/binary 'binary' package>).
 
 source-repository head
   type:     git

@@ -18,5 +18,12 @@ import           Data.Word           as X
 import           GHC.Generics        as X (Generic)
 import           GHC.TypeLits        as X
 
+{-# INLINE rwhnf #-}
 rwhnf :: a -> ()
 rwhnf x = seq x ()
+
+{-# INLINE inside #-}
+inside :: Ord a => a -> (a, a) -> Bool
+x `inside` (lb,ub)
+  | lb > ub = error "inside: unsatifiable range"
+  | otherwise = lb <= x && x <= ub

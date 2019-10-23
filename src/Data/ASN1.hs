@@ -1,4 +1,4 @@
--- Copyright (c) 2019  Herbert Valerio Riedel <hvr@gnu.org>
+-- Copyright (c) 2018-2019  Herbert Valerio Riedel <hvr@gnu.org>
 --
 --  This file is free software: you may copy, redistribute and/or modify it
 --  under the terms of the GNU General Public License as published by the
@@ -470,16 +470,19 @@ wraptag newtag (ASN1Encode old) = wrap'DEFINITE newtag Constructed (old Nothing)
 
 ----------------------------------------------------------------------------
 
+-- | ASN.1 @IMPLICIT@ Annotation
 newtype IMPLICIT (tag :: TagK) x = IMPLICIT x
   deriving (Generic,NFData,IsString,Num,Show,Eq,Ord,Enum)
 
 instance Newtype (IMPLICIT tag x) x
 
+-- | ASN.1 @EXPLICIT@ Annotation
 newtype EXPLICIT (tag :: TagK) x = EXPLICIT x
   deriving (Generic,NFData,IsString,Num,Show,Eq,Ord,Enum)
 
 instance Newtype (EXPLICIT tag x) x
 
+-- | ASN.1 @ENUMERATED@ Annotation
 newtype ENUMERATED x = ENUMERATED x
   deriving (Generic,NFData,Num,Show,Eq,Ord,Enum)
 
@@ -531,7 +534,7 @@ instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7) => ASN1
   asn1encodeCompOf (v1,v2,v3,v4,v5,v6,v7) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5, asn1encode v6, asn1encode v7]
   asn1decodeCompOf = (,,,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
 
-
+-- | ASN.1 @OCTET STRING@ type
 type OCTET_STRING = ByteString
 
 instance ASN1 ByteString where
@@ -584,7 +587,7 @@ instance ASN1 t => ASN1 (NonEmpty t) where
 
   asn1encode (x :| xs) = asn1encode (x:xs)
 
--- | @SET SIZE (1..MAX) OF@
+-- | ASN.1 @SET SIZE (1..MAX) OF@ type
 newtype SET1 x = SET1 (NonEmpty x)
   deriving (Generic,NFData,Show,Eq,Ord)
 
@@ -598,6 +601,7 @@ instance ASN1 t => ASN1 (SET1 t) where
 
   asn1encode (SET1 (x :| xs)) = asn1encode (SET (x:xs))
 
+-- | ASN.1 @SET OF@ type
 newtype SET x = SET [x]
   deriving (Generic,NFData,Show,Eq,Ord)
 
@@ -633,6 +637,7 @@ instance forall tag t . (KnownTag tag, ASN1 t) => ASN1 (EXPLICIT tag t) where
   asn1decode = EXPLICIT <$> explicit (tagVal (Proxy :: Proxy tag)) asn1decode
   asn1encode (EXPLICIT v) = wraptag (tagVal (Proxy :: Proxy tag)) (asn1encode v)
 
+-- | ASN.1 @NULL@ type
 type NULL = ()
 
 -- | denotes @NULL@
@@ -643,7 +648,16 @@ instance ASN1 () where
 
 -- | This represents a @BOOLEAN DEFAULT FALSE@ that is only ever serialized as 'True' (hence why its only inhabitant is a /true/ value)
 --
--- This must be 'Maybe'-wrapped to make any sense
+-- This must be 'Maybe'-wrapped to make any sense; the table below shows the mapping between 'Bool' values and this construct.
+--
+-- +---------+-----------------------------------+
+-- | 'Bool'  | @'Maybe' 'BOOLEAN_DEFAULT_FALSE'@ |
+-- +=========+===================================+
+-- | 'False' | 'Nothing'                         |
+-- +---------+-----------------------------------+
+-- | 'True'  | @'Just' 'BOOL_TRUE'@              |
+-- +---------+-----------------------------------+
+--
 data BOOLEAN_DEFAULT_FALSE = BOOL_TRUE
   deriving (Generic,Eq,Ord,Show)
 
