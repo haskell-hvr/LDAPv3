@@ -14,6 +14,8 @@
 --  along with this program (see `LICENSE`).  If not, see
 --  <https://www.gnu.org/licenses/old-licenses/gpl-2.0.html>.
 
+{-# LANGUAGE DeriveGeneric #-}
+
 module LDAPv3.ResultCode (ResultCode(..)) where
 
 import           Common
@@ -124,7 +126,7 @@ data ResultCode
     | ResultCode'affectsMultipleDSAs
       -- 72-79 unused --
     | ResultCode'other
-    deriving (Show,Eq,Ord,Bounded,Enum)
+    deriving (Generic,Show,Eq,Ord,Bounded,Enum)
 
 
 instance ASN1 ResultCode where

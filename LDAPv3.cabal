@@ -23,6 +23,7 @@ common defaults
     ConstraintKinds
     DataKinds
     DeriveFunctor
+    DeriveGeneric
     FlexibleContexts
     FlexibleInstances
     GeneralizedNewtypeDeriving

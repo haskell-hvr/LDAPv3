@@ -14,4 +14,5 @@ import           Data.Proxy          as X (Proxy (Proxy))
 import           Data.Semigroup      as X
 import           Data.Text.Short     as X (ShortText)
 import           Data.Word           as X
+import           GHC.Generics        as X (Generic)
 import           GHC.TypeLits        as X

@@ -17,6 +17,7 @@
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -470,17 +471,17 @@ wraptag newtag (ASN1Encode old) = wrap'DEFINITE newtag Constructed (old Nothing)
 ----------------------------------------------------------------------------
 
 newtype IMPLICIT (tag :: TagK) x = IMPLICIT x
-  deriving (IsString,Num,Show,Eq,Ord,Enum)
+  deriving (Generic,IsString,Num,Show,Eq,Ord,Enum)
 
 instance Newtype (IMPLICIT tag x) x
 
 newtype EXPLICIT (tag :: TagK) x = EXPLICIT x
-  deriving (IsString,Num,Show,Eq,Ord,Enum)
+  deriving (Generic,IsString,Num,Show,Eq,Ord,Enum)
 
 instance Newtype (EXPLICIT tag x) x
 
 newtype ENUMERATED x = ENUMERATED x
-  deriving (Num,Show,Eq,Ord,Enum)
+  deriving (Generic,Num,Show,Eq,Ord,Enum)
 
 instance Newtype (ENUMERATED x) x
 
@@ -585,7 +586,7 @@ instance ASN1 t => ASN1 (NonEmpty t) where
 
 -- | @SET SIZE (1..MAX) OF@
 newtype SET1 x = SET1 (NonEmpty x)
-  deriving (Show,Eq)
+  deriving (Generic,Show,Eq)
 
 instance Newtype (SET1 x) (NonEmpty x)
 
@@ -598,7 +599,7 @@ instance ASN1 t => ASN1 (SET1 t) where
   asn1encode (SET1 (x :| xs)) = asn1encode (SET (x:xs))
 
 newtype SET x = SET [x]
-  deriving (Show,Eq)
+  deriving (Generic,Show,Eq)
 
 instance Newtype (SET x) [x]
 
@@ -644,7 +645,7 @@ instance ASN1 () where
 --
 -- This must be 'Maybe'-wrapped to make any sense
 data BOOLEAN_DEFAULT_FALSE = BOOL_TRUE
-  deriving (Eq,Ord,Show)
+  deriving (Generic,Eq,Ord,Show)
 
 instance ASN1 BOOLEAN_DEFAULT_FALSE where
   asn1defTag _ = Universal 1 -- not used
