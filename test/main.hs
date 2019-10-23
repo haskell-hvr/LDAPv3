@@ -14,10 +14,9 @@
 --  along with this program (see `LICENSE`).  If not, see
 --  <https://www.gnu.org/licenses/old-licenses/gpl-2.0.html>.
 
+{-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main (main) where
 
@@ -26,8 +25,7 @@ import           LDAPv3
 import qualified Codec.Base16          as B16
 import           Data.Binary           as Bin
 import qualified Data.ByteString.Lazy  as BSL
-import           Data.Char
-import           Data.Int
+import           Data.Char             (isSpace)
 import           Data.List.NonEmpty    (NonEmpty (..))
 import qualified Data.Text.Short       as TS
 
@@ -35,23 +33,15 @@ import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck as QC
 
+import           Arbitrary             ()
+
 main :: IO ()
 main = defaultMain tests
 
 tests, qcProps, unitTests :: TestTree
-tests = testGroup "Tests" [qcProps, unitTests]
+tests = testGroup "Tests" [unitTests, qcProps]
 
-int2msgid :: Int32 -> MessageID
-int2msgid i = case toUInt (abs i) of
-                Right j -> MessageID j
-                Left _  -> MessageID 0
-
-msgid2int :: MessageID -> Int32
-msgid2int (MessageID x) = fromUInt x
-
-instance Arbitrary MessageID where
-  arbitrary = int2msgid `fmap` arbitrary
-  shrink = map int2msgid . shrink . msgid2int
+----------------------------------------------------------------------------
 
 qcProps = testGroup "Properties"
   [ QC.testProperty "MessageID round-trip" $
@@ -59,7 +49,16 @@ qcProps = testGroup "Properties"
                                       (ProtocolOp'bindRequest (BindRequest 3 "" (AuthenticationChoice'simple "")))
                                       Nothing
                 in decode (encode msg) == msg
+
+  , QC.testProperty "decode . encode == id @LDAPMessage" $
+      \(msg :: LDAPMessage) -> (decode . encode) msg == msg
   ]
+
+----------------------------------------------------------------------------
+
+-- local helper
+hex :: TS.ShortText -> BSL.ByteString
+hex = either error id . B16.decode . TS.toShortByteString . TS.filter (not . isSpace)
 
 unitTests = testGroup "Reference samples"
   [ testGroup tlabel
@@ -70,7 +69,7 @@ unitTests = testGroup "Reference samples"
   | (tlabel,ref_bin,ref_msg) <-
 
     [ ( "bindRequest #1"
-      , b16"30 0c 02 01 01 60 07 02 01 03 04 00 80 00"
+      , hex"30 0c 02 01 01 60 07 02 01 03 04 00 80 00"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 1
                     , _LDAPMessage'protocolOp = ProtocolOp'bindRequest
                         ( BindRequest
@@ -84,7 +83,7 @@ unitTests = testGroup "Reference samples"
       )
 
     , ( "bindRequest #2"
-      , b16"30 2b 02 01 01 60 26 02 01 03 04 1a 63 6e 3d 61 64 6d 69 6e 2c 64 63 3d 65 78 61 6d 70 6c 65 2c 64 63 3d 6f 72 67 80 05 61 64 6d 69 6e"
+      , hex"30 2b 02 01 01 60 26 02 01 03 04 1a 63 6e 3d 61 64 6d 69 6e 2c 64 63 3d 65 78 61 6d 70 6c 65 2c 64 63 3d 6f 72 67 80 05 61 64 6d 69 6e"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 1
                     , _LDAPMessage'protocolOp = ProtocolOp'bindRequest
                         ( BindRequest
@@ -98,7 +97,7 @@ unitTests = testGroup "Reference samples"
       )
 
     , ( "bindRequest #3"
-      , b16"30 18 02 01 02 60 13 02 01 03 04 00 a3 0c 04 0a 44 49 47 45 53 54 2d 4d 44 35"
+      , hex"30 18 02 01 02 60 13 02 01 03 04 00 a3 0c 04 0a 44 49 47 45 53 54 2d 4d 44 35"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 2
                     , _LDAPMessage'protocolOp = ProtocolOp'bindRequest
                         ( BindRequest
@@ -119,7 +118,7 @@ unitTests = testGroup "Reference samples"
       )
 
     , ( "bindResponse #1"
-      , b16"30 0c 02 01 01 61 07 0a 01 00 04 00 04 00"
+      , hex"30 0c 02 01 01 61 07 0a 01 00 04 00 04 00"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 1
                     , _LDAPMessage'protocolOp = ProtocolOp'bindResponse
                         ( BindResponse
@@ -137,7 +136,7 @@ unitTests = testGroup "Reference samples"
       )
 
     , ( "bindResponse #2"
-      , b16"30 41 02 01 01 61 3c 0a 01 35 04 00 04 35 75 6e 61 75 74 68 65 6e 74 69 63 61 74 65 64 20 62 69 6e 64 20 28 44 4e 20 77 69 74 68 20 6e 6f 20 70 61 73 73 77 6f 72 64 29 20 64 69 73 61 6c 6c 6f 77 65 64"
+      , hex"30 41 02 01 01 61 3c 0a 01 35 04 00 04 35 75 6e 61 75 74 68 65 6e 74 69 63 61 74 65 64 20 62 69 6e 64 20 28 44 4e 20 77 69 74 68 20 6e 6f 20 70 61 73 73 77 6f 72 64 29 20 64 69 73 61 6c 6c 6f 77 65 64"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 1
                     , _LDAPMessage'protocolOp = ProtocolOp'bindResponse
                         ( BindResponse
@@ -155,7 +154,7 @@ unitTests = testGroup "Reference samples"
       )
 
     , ( "bindResponse #3"
-      , b16"30 0c 02 01 01 61 07 0a 01 31 04 00 04 00"
+      , hex"30 0c 02 01 01 61 07 0a 01 31 04 00 04 00"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 1
                     , _LDAPMessage'protocolOp = ProtocolOp'bindResponse
                         ( BindResponse
@@ -174,7 +173,7 @@ unitTests = testGroup "Reference samples"
 
 
     , ( "searchRequest #1"
-      , b16"30 36 02 01 02 63 31 04 11 64 63 3d 65 78 61 6d 70 6c 65 2c 64 63 3d 6f 72 67 0a 01 02 0a 01 00 02 01 00 02 01 00 01 01 00 87 0b 6f 62 6a 65 63 74 63 6c 61 73 73 30 00"
+      , hex"30 36 02 01 02 63 31 04 11 64 63 3d 65 78 61 6d 70 6c 65 2c 64 63 3d 6f 72 67 0a 01 02 0a 01 00 02 01 00 02 01 00 01 01 00 87 0b 6f 62 6a 65 63 74 63 6c 61 73 73 30 00"
 
       , LDAPMessage { _LDAPMessage'messageID = MessageID 2
                     , _LDAPMessage'protocolOp = ProtocolOp'searchRequest
@@ -194,7 +193,7 @@ unitTests = testGroup "Reference samples"
       )
 
     , ( "searchRequest #2"
-      , b16"30 42 02 01 02 63 3d 04 11 64 63 3d 65 78 61 6d 70 6c 65 2c 64 63 3d 6f 72 67 0a 01 02 0a 01 00 02 01 00 02 01 00 01 01 00 a2 17 a3 15 04 0b 6f 62 6a 65 63 74 43 6c 61 73 73 04 06 70 65 72 73 6f 6e 30 00"
+      , hex"30 42 02 01 02 63 3d 04 11 64 63 3d 65 78 61 6d 70 6c 65 2c 64 63 3d 6f 72 67 0a 01 02 0a 01 00 02 01 00 02 01 00 01 01 00 a2 17 a3 15 04 0b 6f 62 6a 65 63 74 43 6c 61 73 73 04 06 70 65 72 73 6f 6e 30 00"
 
       , LDAPMessage { _LDAPMessage'messageID = MessageID 2
                     , _LDAPMessage'protocolOp = ProtocolOp'searchRequest
@@ -225,7 +224,7 @@ unitTests = testGroup "Reference samples"
       )
 
     , ( "searchRequest #3"
-      , b16"30 81 80 02 01 02 63 7b 04 11 64 63 3d 65 78 61 6d 70 6c 65 2c 64 63 3d 6f 72 67 0a 01 02 0a 01 00 02 01 00 02 01 00 01 01 00 a0 55 a2 3c a1 3a a9 1f 82 02 6f 75 83 16 52 65 73 65 61 72 63 68 41 6e 64 44 65 76 65 6c 6f 70 6d 65 6e 74 84 01 ff a9 17 82 02 6f 75 83 0e 48 75 6d 61 6e 52 65 73 6f 75 72 63 65 73 84 01 ff a3 15 04 0b 6f 62 6a 65 63 74 43 6c 61 73 73 04 06 70 65 72 73 6f 6e 30 00"
+      , hex"30 81 80 02 01 02 63 7b 04 11 64 63 3d 65 78 61 6d 70 6c 65 2c 64 63 3d 6f 72 67 0a 01 02 0a 01 00 02 01 00 02 01 00 01 01 00 a0 55 a2 3c a1 3a a9 1f 82 02 6f 75 83 16 52 65 73 65 61 72 63 68 41 6e 64 44 65 76 65 6c 6f 70 6d 65 6e 74 84 01 ff a9 17 82 02 6f 75 83 0e 48 75 6d 61 6e 52 65 73 6f 75 72 63 65 73 84 01 ff a3 15 04 0b 6f 62 6a 65 63 74 43 6c 61 73 73 04 06 70 65 72 73 6f 6e 30 00"
 
       , LDAPMessage { _LDAPMessage'messageID = MessageID 2
                     , _LDAPMessage'protocolOp = ProtocolOp'searchRequest
@@ -291,8 +290,38 @@ unitTests = testGroup "Reference samples"
 
       )
 
+    , ( "searchRequest #4"
+      , hex"30 3a 02 01 02 63 35 04 11 64 63 3d 65 78 61 6d 70 6c 65 2c 64 63 3d 6f 72 67 0a 01 02 0a 01 00 02 01 00 02 01 00 01 01 00 a4 0f 04 02 63 6e 30 09 80 01 61 81 01 6d 82 01 6e 30 00"
+      , LDAPMessage { _LDAPMessage'messageID = MessageID 2
+                    , _LDAPMessage'protocolOp = ProtocolOp'searchRequest
+                        ( SearchRequest
+                            { _SearchRequest'baseObject = "dc=example,dc=org"
+                            , _SearchRequest'scope = Scope'wholeSubtree
+                            , _SearchRequest'derefAliases = DerefAliases'neverDerefAliases
+                            , _SearchRequest'sizeLimit = 0
+                            , _SearchRequest'timeLimit = 0
+                            , _SearchRequest'typesOnly = False
+                            , _SearchRequest'filter = Filter'substrings
+                                ( IMPLICIT
+                                    ( SubstringFilter
+                                        { _SubstringFilter'type = "cn"
+                                        , _SubstringFilter'substrings =
+                                            [ Substring'initial "a"
+                                            , Substring'any "m"
+                                            , Substring'final "n"
+                                            ]
+                                        }
+                                    )
+                                )
+                            , _SearchRequest'attributes = []
+                            }
+                        )
+                    , _LDAPMessage'controls = Nothing
+                    }
+      )
+
     , ( "searchResEntry #1"
-      , b16"30 6e 02 01 02 64 69 04 11 64 63 3d 65 78 61 6d 70 6c 65 2c 64 63 3d 6f 72 67 30 54 30 2c 04 0b 6f 62 6a 65 63 74 43 6c 61 73 73 31 1d 04 03 74 6f 70 04 08 64 63 4f 62 6a 65 63 74 04 0c 6f 72 67 61 6e 69 7a 61 74 69 6f 6e 30 13 04 01 6f 31 0e 04 0c 45 78 61 6d 70 6c 65 20 49 6e 63 2e 30 0f 04 02 64 63 31 09 04 07 65 78 61 6d 70 6c 65"
+      , hex"30 6e 02 01 02 64 69 04 11 64 63 3d 65 78 61 6d 70 6c 65 2c 64 63 3d 6f 72 67 30 54 30 2c 04 0b 6f 62 6a 65 63 74 43 6c 61 73 73 31 1d 04 03 74 6f 70 04 08 64 63 4f 62 6a 65 63 74 04 0c 6f 72 67 61 6e 69 7a 61 74 69 6f 6e 30 13 04 01 6f 31 0e 04 0c 45 78 61 6d 70 6c 65 20 49 6e 63 2e 30 0f 04 02 64 63 31 09 04 07 65 78 61 6d 70 6c 65"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 2
                     , _LDAPMessage'protocolOp = ProtocolOp'searchResEntry
                         ( SearchResultEntry
@@ -322,7 +351,7 @@ unitTests = testGroup "Reference samples"
       )
 
     , ( "searchResEntry #2"
-      , b16"30 81 ce 02 01 02 64 81 c8 04 1a 63 6e 3d 61 64 6d 69 6e 2c 64 63 3d 65 78 61 6d 70 6c 65 2c 64 63 3d 6f 72 67 30 81 a9 30 39 04 0b 6f 62 6a 65 63 74 43 6c 61 73 73 31 2a 04 14 73 69 6d 70 6c 65 53 65 63 75 72 69 74 79 4f 62 6a 65 63 74 04 12 6f 72 67 61 6e 69 7a 61 74 69 6f 6e 61 6c 52 6f 6c 65 30 0d 04 02 63 6e 31 07 04 05 61 64 6d 69 6e 30 23 04 0b 64 65 73 63 72 69 70 74 69 6f 6e 31 14 04 12 4c 44 41 50 20 61 64 6d 69 6e 69 73 74 72 61 74 6f 72 30 38 04 0c 75 73 65 72 50 61 73 73 77 6f 72 64 31 28 04 26 7b 53 53 48 41 7d 54 66 50 53 6f 37 46 68 58 38 63 34 53 6b 6c 4f 52 58 75 46 54 55 75 67 39 38 64 4e 46 4c 6b 34"
+      , hex"30 81 ce 02 01 02 64 81 c8 04 1a 63 6e 3d 61 64 6d 69 6e 2c 64 63 3d 65 78 61 6d 70 6c 65 2c 64 63 3d 6f 72 67 30 81 a9 30 39 04 0b 6f 62 6a 65 63 74 43 6c 61 73 73 31 2a 04 14 73 69 6d 70 6c 65 53 65 63 75 72 69 74 79 4f 62 6a 65 63 74 04 12 6f 72 67 61 6e 69 7a 61 74 69 6f 6e 61 6c 52 6f 6c 65 30 0d 04 02 63 6e 31 07 04 05 61 64 6d 69 6e 30 23 04 0b 64 65 73 63 72 69 70 74 69 6f 6e 31 14 04 12 4c 44 41 50 20 61 64 6d 69 6e 69 73 74 72 61 74 6f 72 30 38 04 0c 75 73 65 72 50 61 73 73 77 6f 72 64 31 28 04 26 7b 53 53 48 41 7d 54 66 50 53 6f 37 46 68 58 38 63 34 53 6b 6c 4f 52 58 75 46 54 55 75 67 39 38 64 4e 46 4c 6b 34"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 2
                     , _LDAPMessage'protocolOp = ProtocolOp'searchResEntry
                         ( SearchResultEntry
@@ -355,7 +384,7 @@ unitTests = testGroup "Reference samples"
       )
 
     , ( "searchResDone #1"
-      , b16"30 0c 02 01 02 65 07 0a 01 00 04 00 04 00"
+      , hex"30 0c 02 01 02 65 07 0a 01 00 04 00 04 00"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 2
                     , _LDAPMessage'protocolOp = ProtocolOp'searchResDone
                         ( IMPLICIT
@@ -372,7 +401,7 @@ unitTests = testGroup "Reference samples"
       )
 
     , ( "searchResDone #2"
-      , b16"30 0c 02 01 02 65 07 0a 01 20 04 00 04 00"
+      , hex"30 0c 02 01 02 65 07 0a 01 20 04 00 04 00"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 2
                     , _LDAPMessage'protocolOp = ProtocolOp'searchResDone
                         ( IMPLICIT
@@ -389,7 +418,7 @@ unitTests = testGroup "Reference samples"
       )
 
     , ( "unbindRequest"
-      , b16"30 05 02 01 03 42 00"
+      , hex"30 05 02 01 03 42 00"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 3
                     , _LDAPMessage'protocolOp = ProtocolOp'unbindRequest (IMPLICIT ())
                     , _LDAPMessage'controls = Nothing
@@ -399,6 +428,3 @@ unitTests = testGroup "Reference samples"
     ]
 
   ]
-
-b16 :: TS.ShortText -> BSL.ByteString
-b16 = either error id . B16.decode . TS.toShortByteString . TS.filter (not . isSpace)

@@ -75,6 +75,7 @@ test-suite LDAPv3
   type: exitcode-stdio-1.0
   hs-source-dirs: test
   main-is: main.hs
+  other-modules: Arbitrary
 
   build-depends:
     , LDAPv3
@@ -83,3 +84,4 @@ test-suite LDAPv3
     , tasty-quickcheck ^>= 0.10.1
     , tasty-hunit      ^>= 0.10.0
     , base-encoding    ^>= 0.1.0
+    , quickcheck-instances ^>= 0.3.22
