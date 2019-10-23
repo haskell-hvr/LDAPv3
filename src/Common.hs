@@ -1,4 +1,4 @@
-module Common (module X) where
+module Common (module Common, module X) where
 
 import           Control.Applicative as X
 import           Control.Exception   as X (ArithException (Overflow, Underflow), throw)
@@ -16,3 +16,7 @@ import           Data.Text.Short     as X (ShortText)
 import           Data.Word           as X
 import           GHC.Generics        as X (Generic)
 import           GHC.TypeLits        as X
+import Control.DeepSeq as X (NFData(rnf))
+
+rwhnf :: a -> ()
+rwhnf x = seq x ()

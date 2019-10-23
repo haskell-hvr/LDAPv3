@@ -215,7 +215,7 @@ instance ASN1 LDAPMessage where
 
 -}
 newtype MessageID = MessageID (UInt 0 MaxInt Int32)
-                  deriving (Generic,Ord,Bounded,ASN1,Show,Eq)
+                  deriving (Generic,NFData,Ord,Bounded,ASN1,Show,Eq)
 
 {- | LDAPv3 protocol ASN.1 constant as per <https://tools.ietf.org/html/rfc4511#section-4.1.1 RFC4511 Section 4.1.1>
 
@@ -250,6 +250,8 @@ data ProtocolOp
   | ProtocolOp'extendedResp    ExtendedResponse
   | ProtocolOp'intermediateResponse  IntermediateResponse
   deriving (Generic,Show,Eq)
+
+instance NFData ProtocolOp
 
 instance ASN1 ProtocolOp where
   asn1decode = with'CHOICE
@@ -322,6 +324,8 @@ data Control = Control
   , _Control'controlValue :: Maybe OCTET_STRING
   } deriving (Generic,Show,Eq)
 
+instance NFData Control
+
 instance ASN1 Control where
   asn1decodeCompOf = Control <$> asn1decode <*> asn1decode <*> asn1decode
   asn1encodeCompOf (Control v1 v2 v3) = asn1encodeCompOf (v1,v2,v3)
@@ -351,6 +355,8 @@ data BindRequest = BindRequest
   , bindRequest'authentication :: AuthenticationChoice
   } deriving (Generic,Show,Eq)
 
+instance NFData BindRequest
+
 instance ASN1 BindRequest where
   asn1defTag _ = Application 0
   asn1decodeCompOf = BindRequest <$> asn1decode <*> asn1decode <*> asn1decode
@@ -371,6 +377,8 @@ data AuthenticationChoice
   = AuthenticationChoice'simple  ('CONTEXTUAL 0 `IMPLICIT` OCTET_STRING)
   | AuthenticationChoice'sasl    ('CONTEXTUAL 3 `IMPLICIT` SaslCredentials)
   deriving (Generic,Show,Eq)
+
+instance NFData AuthenticationChoice
 
 instance ASN1 AuthenticationChoice where
   asn1decode = with'CHOICE
@@ -394,6 +402,8 @@ data SaslCredentials = SaslCredentials
   , _SaslCredentials'credentials :: Maybe OCTET_STRING
   } deriving (Generic,Show,Eq)
 
+instance NFData SaslCredentials
+
 instance ASN1 SaslCredentials where
   asn1decodeCompOf = SaslCredentials <$> asn1decode <*> asn1decode
   asn1encodeCompOf (SaslCredentials v1 v2) = asn1encodeCompOf (v1,v2)
@@ -412,6 +422,8 @@ data BindResponse = BindResponse
   { _BindResponse'LDAPResult      :: LDAPResult
   , _BindResponse'serverSaslCreds :: Maybe ('CONTEXTUAL 7 `IMPLICIT` OCTET_STRING)
   } deriving (Generic,Show,Eq)
+
+instance NFData BindResponse
 
 instance ASN1 BindResponse where
   asn1defTag _ = Application 1
@@ -468,6 +480,8 @@ data SearchRequest = SearchRequest
   , _SearchRequest'attributes   :: AttributeSelection
   } deriving (Generic,Show,Eq)
 
+instance NFData SearchRequest
+
 {- | See 'SearchRequest'
 
 > AttributeSelection ::= SEQUENCE OF selector LDAPString
@@ -509,6 +523,9 @@ data Scope
   | Scope'wholeSubtree
   deriving (Generic,Bounded,Enum,Show,Eq)
 
+instance NFData Scope where
+  rnf = rwhnf
+
 instance ASN1 Scope where
   asn1decode = dec'BoundedEnum
   asn1encode = enc'BoundedEnum
@@ -520,6 +537,9 @@ data DerefAliases
   | DerefAliases'derefFindingBaseObj
   | DerefAliases'derefAlways
   deriving (Generic,Bounded,Enum,Show,Eq)
+
+instance NFData DerefAliases where
+  rnf = rwhnf
 
 instance ASN1 DerefAliases where
   asn1decode = dec'BoundedEnum
@@ -553,6 +573,8 @@ data Filter
   | Filter'approxMatch     ('CONTEXTUAL 8 `IMPLICIT` AttributeValueAssertion)
   | Filter'extensibleMatch ('CONTEXTUAL 9 `IMPLICIT` MatchingRuleAssertion)
   deriving (Generic,Show,Eq)
+
+instance NFData Filter
 
 instance ASN1 Filter where
   asn1decode = with'CHOICE
@@ -608,6 +630,8 @@ data AttributeValueAssertion = AttributeValueAssertion
   , _AttributeValueAssertion'assertionValue :: AssertionValue
   } deriving (Generic,Show,Eq)
 
+instance NFData AttributeValueAssertion
+
 -- | > AssertionValue ::= OCTET STRING
 type AssertionValue = OCTET_STRING
 
@@ -631,6 +655,8 @@ data SubstringFilter = SubstringFilter
   , _SubstringFilter'substrings :: NonEmpty Substring
   } deriving (Generic,Show,Eq)
 
+instance NFData SubstringFilter
+
 instance ASN1 SubstringFilter where
   asn1decodeCompOf = SubstringFilter <$> asn1decode <*> asn1decode
   asn1encodeCompOf (SubstringFilter v1 v2) = asn1encodeCompOf (v1,v2)
@@ -641,6 +667,8 @@ data Substring
   | Substring'any     ('CONTEXTUAL 1 `IMPLICIT` AssertionValue)
   | Substring'final   ('CONTEXTUAL 2 `IMPLICIT` AssertionValue)
   deriving (Generic,Show,Eq)
+
+instance NFData Substring
 
 instance ASN1 Substring where
   asn1decode = with'CHOICE
@@ -678,6 +706,8 @@ data MatchingRuleAssertion = MatchingRuleAssertion
   , _MatchingRuleAssertion'dnAttributes :: Maybe ('CONTEXTUAL 4 `IMPLICIT` BOOLEAN_DEFAULT_FALSE)
   } deriving (Generic,Show,Eq)
 
+instance NFData MatchingRuleAssertion
+
 instance ASN1 MatchingRuleAssertion where
   asn1decodeCompOf = MatchingRuleAssertion <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
   asn1encodeCompOf (MatchingRuleAssertion v1 v2 v3 v4) = asn1encodeCompOf (v1,v2,v3,v4)
@@ -692,7 +722,7 @@ instance ASN1 MatchingRuleAssertion where
 -}
 
 newtype SearchResultReference = SearchResultReference (NonEmpty URI)
-  deriving (Generic,Show,Eq)
+  deriving (Generic,NFData,Show,Eq)
 
 instance ASN1 SearchResultReference where
   asn1defTag _ = Application 19 -- not used
@@ -712,6 +742,8 @@ data SearchResultEntry = SearchResultEntry
   { _SearchResultEntry'objectName :: LDAPDN
   , _SearchResultEntry'attributes :: PartialAttributeList
   } deriving (Generic,Show,Eq)
+
+instance NFData SearchResultEntry
 
 instance ASN1 SearchResultEntry where
   asn1defTag _ = Application 4
@@ -737,6 +769,8 @@ data PartialAttribute = PartialAttribute
   { _PartialAttribute'type :: AttributeDescription
   , _PartialAttribute'vals :: SET AttributeValue
   } deriving (Generic,Show,Eq)
+
+instance NFData PartialAttribute
 
 instance ASN1 PartialAttribute where
   asn1decodeCompOf = PartialAttribute <$> asn1decode <*> asn1decode
@@ -815,6 +849,8 @@ data LDAPResult = LDAPResult
   , _LDAPResult'diagnosticMessage :: LDAPString
   , _LDAPResult'referral          :: Maybe ('CONTEXTUAL 3 `IMPLICIT` Referral)
   } deriving (Generic,Show,Eq)
+
+instance NFData LDAPResult
 
 {- | Referral result code  (<https://tools.ietf.org/html/rfc4511#section-4.1.10 RFC4511 Section 4.1.10>)
 
@@ -906,6 +942,8 @@ data CompareRequest = CompareRequest
   , _CompareRequest'ava   :: AttributeValueAssertion
   } deriving (Generic,Show,Eq)
 
+instance NFData CompareRequest
+
 instance ASN1 CompareRequest where
   asn1defTag _ = Application 14
   asn1decodeCompOf = CompareRequest <$> asn1decode <*> asn1decode
@@ -938,6 +976,8 @@ data ExtendedRequest = ExtendedRequest
   , _ExtendedRequest'responseValue :: Maybe ('CONTEXTUAL 1 `IMPLICIT` OCTET_STRING)
   } deriving (Generic,Show,Eq)
 
+instance NFData ExtendedRequest
+
 instance ASN1 ExtendedRequest where
   asn1defTag _ = Application 23
   asn1decodeCompOf = ExtendedRequest <$> asn1decode <*> asn1decode
@@ -956,6 +996,8 @@ data ExtendedResponse = ExtendedResponse
   , _ExtendedResponse'responseName  :: Maybe ('CONTEXTUAL 10 `IMPLICIT` LDAPOID)
   , _ExtendedResponse'responseValue :: Maybe ('CONTEXTUAL 11 `IMPLICIT` OCTET_STRING)
   } deriving (Generic,Show,Eq)
+
+instance NFData ExtendedResponse
 
 instance ASN1 ExtendedResponse where
   asn1defTag _ = Application 24
@@ -983,6 +1025,8 @@ data IntermediateResponse = IntermediateResponse
   { _IntermediateResponse'responseName  :: Maybe ('CONTEXTUAL 0 `IMPLICIT` LDAPOID)
   , _IntermediateResponse'responseValue :: Maybe ('CONTEXTUAL 1 `IMPLICIT` OCTET_STRING)
   } deriving (Generic,Show,Eq)
+
+instance NFData IntermediateResponse
 
 instance ASN1 IntermediateResponse where
   asn1defTag _ = Application 25

@@ -128,6 +128,8 @@ data ResultCode
     | ResultCode'other
     deriving (Generic,Show,Eq,Ord,Bounded,Enum)
 
+instance NFData ResultCode where
+  rnf = rwhnf
 
 instance ASN1 ResultCode where
   asn1decode = (\(ENUMERATED x) -> x) <$> asn1decode

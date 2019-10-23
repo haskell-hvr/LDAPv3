@@ -471,17 +471,17 @@ wraptag newtag (ASN1Encode old) = wrap'DEFINITE newtag Constructed (old Nothing)
 ----------------------------------------------------------------------------
 
 newtype IMPLICIT (tag :: TagK) x = IMPLICIT x
-  deriving (Generic,IsString,Num,Show,Eq,Ord,Enum)
+  deriving (Generic,NFData,IsString,Num,Show,Eq,Ord,Enum)
 
 instance Newtype (IMPLICIT tag x) x
 
 newtype EXPLICIT (tag :: TagK) x = EXPLICIT x
-  deriving (Generic,IsString,Num,Show,Eq,Ord,Enum)
+  deriving (Generic,NFData,IsString,Num,Show,Eq,Ord,Enum)
 
 instance Newtype (EXPLICIT tag x) x
 
 newtype ENUMERATED x = ENUMERATED x
-  deriving (Generic,Num,Show,Eq,Ord,Enum)
+  deriving (Generic,NFData,Num,Show,Eq,Ord,Enum)
 
 instance Newtype (ENUMERATED x) x
 
@@ -586,7 +586,7 @@ instance ASN1 t => ASN1 (NonEmpty t) where
 
 -- | @SET SIZE (1..MAX) OF@
 newtype SET1 x = SET1 (NonEmpty x)
-  deriving (Generic,Show,Eq)
+  deriving (Generic,NFData,Show,Eq,Ord)
 
 instance Newtype (SET1 x) (NonEmpty x)
 
@@ -599,7 +599,7 @@ instance ASN1 t => ASN1 (SET1 t) where
   asn1encode (SET1 (x :| xs)) = asn1encode (SET (x:xs))
 
 newtype SET x = SET [x]
-  deriving (Generic,Show,Eq)
+  deriving (Generic,NFData,Show,Eq,Ord)
 
 instance Newtype (SET x) [x]
 
@@ -646,6 +646,9 @@ instance ASN1 () where
 -- This must be 'Maybe'-wrapped to make any sense
 data BOOLEAN_DEFAULT_FALSE = BOOL_TRUE
   deriving (Generic,Eq,Ord,Show)
+
+instance NFData BOOLEAN_DEFAULT_FALSE where
+  rnf BOOL_TRUE = ()
 
 instance ASN1 BOOLEAN_DEFAULT_FALSE where
   asn1defTag _ = Universal 1 -- not used

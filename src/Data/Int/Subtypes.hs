@@ -50,6 +50,12 @@ fromUInt (UInt i) = i
 fromSInt :: SInt nlb ub t -> t
 fromSInt (SInt i) = i
 
+instance forall lb ub t . NFData t => NFData (UInt lb ub t) where
+  rnf = coerce (rnf :: t -> ())
+
+instance forall lb ub t . NFData t => NFData (SInt lb ub t) where
+  rnf = coerce (rnf :: t -> ())
+
 instance forall lb ub t . Show t => Show (UInt lb ub t) where
   show      = coerce (show :: t -> String)
   showsPrec = coerce (showsPrec :: Int -> t -> ShowS)
