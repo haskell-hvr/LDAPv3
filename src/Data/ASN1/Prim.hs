@@ -46,9 +46,9 @@ module Data.ASN1.Prim
 
 import           Common
 
-import           Data.Binary          as Bin
-import           Data.Binary.Get      as Bin
-import           Data.Binary.Put      as Bin
+import           Data.Binary     as Bin
+import           Data.Binary.Get as Bin
+import           Data.Binary.Put as Bin
 
 data TagPC
   = Primitive

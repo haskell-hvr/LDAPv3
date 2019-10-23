@@ -26,6 +26,7 @@ import qualified Codec.Base16          as B16
 import           Data.Binary           as Bin
 import qualified Data.ByteString.Lazy  as BSL
 import           Data.Char             (isSpace)
+import           Data.Either
 import           Data.List.NonEmpty    (NonEmpty (..))
 import qualified Data.Text.Short       as TS
 
@@ -51,8 +52,32 @@ qcProps = testGroup "Properties"
                 in decode (encode msg) == msg
 
   , QC.testProperty "decode . encode == id @LDAPMessage" $
-      \(msg :: LDAPMessage) -> (decode . encode) msg == msg
+      \(msg :: LDAPMessage) -> (decode . encode) msg === msg
+
+  , QC.testProperty "decode multiple" $
+      \msg1 msg2 -> decodeMulti (encode msg1 `mappend` encode msg2) === ([msg1,msg2],mempty)
+
+  , QC.testProperty "decode with noise" $
+      \msg1 noise -> decodeOne (encode msg1 `mappend` noise) === Right (msg1,noise)
+
+  , QC.testProperty "decode garbage" $ -- this has a very low probability of the random noise being a valid LDAPMessage
+      \noise -> isLeft (decodeOne noise)
+
   ]
+
+decodeOne :: BSL.ByteString -> Either BSL.ByteString (LDAPMessage,BSL.ByteString)
+decodeOne raw = case decodeOrFail raw of
+  Left (rest,_,_)  -> Left rest
+  Right (rest,_,v) -> Right (v,rest)
+
+decodeMulti :: BSL.ByteString -> ([LDAPMessage],BSL.ByteString)
+decodeMulti = go []
+  where
+    go acc raw
+      | BSL.null raw = (reverse acc, raw)
+      | otherwise = case decodeOne raw of
+          Left rest      -> (reverse acc, rest)
+          Right (v,rest) -> go (v:acc) rest
 
 ----------------------------------------------------------------------------
 
