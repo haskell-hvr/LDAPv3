@@ -23,7 +23,7 @@ module Arbitrary () where
 
 import           LDAPv3
 
-import Data.Coerce (coerce)
+import           Data.Coerce               (coerce)
 import           Data.Int
 import qualified Data.Text.Short           as TS
 import           Test.QuickCheck.Instances ()
@@ -92,13 +92,13 @@ instance Arbitrary ProtocolOp where
     , (1, ProtocolOp'searchResDone  <$> arbitrary)
     , (5, ProtocolOp'searchResEntry <$> arbitrary)
     , (2, ProtocolOp'searchResRef   <$> arbitrary)
-
+    , (2, ProtocolOp'modifyRequest  <$> arbitrary)
     , (1, ProtocolOp'modifyResponse <$> arbitrary)
-
+    , (2, ProtocolOp'addRequest     <$> arbitrary)
     , (1, ProtocolOp'addResponse    <$> arbitrary)
     , (1, ProtocolOp'delRequest     <$> arbitrary)
     , (1, ProtocolOp'delResponse    <$> arbitrary)
-
+    , (2, ProtocolOp'modDNRequest   <$> arbitrary)
     , (1, ProtocolOp'modDNResponse  <$> arbitrary)
     , (2, ProtocolOp'compareRequest <$> arbitrary)
     , (1, ProtocolOp'compareResponse <$> arbitrary)
@@ -185,8 +185,28 @@ instance Arbitrary PartialAttribute where
   arbitrary = PartialAttribute <$> arbitrary <*> arbitrary
   shrink = genericShrink
 
+instance Arbitrary Attribute where
+  arbitrary = Attribute <$> arbitrary <*> arbitrary
+  shrink = genericShrink
+
 instance Arbitrary SearchResultReference where
   arbitrary = SearchResultReference <$> arbitrary
+  shrink = genericShrink
+
+instance Arbitrary ModifyRequest where
+  arbitrary = ModifyRequest <$> arbitrary <*> arbitrary
+  shrink = genericShrink
+
+instance Arbitrary Change where
+  arbitrary = Change <$> arbitrary <*> arbitrary
+  shrink = genericShrink
+
+instance Arbitrary Operation where
+  arbitrary = arbitraryBoundedEnum
+  shrink = genericShrink
+
+instance Arbitrary AddRequest where
+  arbitrary = AddRequest <$> arbitrary <*> arbitrary
   shrink = genericShrink
 
 instance Arbitrary CompareRequest where
@@ -195,6 +215,10 @@ instance Arbitrary CompareRequest where
 
 instance Arbitrary AttributeValueAssertion where
   arbitrary = AttributeValueAssertion <$> arbitrary <*> arbitrary
+  shrink = genericShrink
+
+instance Arbitrary ModifyDNRequest where
+  arbitrary = ModifyDNRequest <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
   shrink = genericShrink
 
 instance Arbitrary ExtendedRequest where

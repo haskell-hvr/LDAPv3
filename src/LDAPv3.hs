@@ -42,7 +42,7 @@ module LDAPv3
     , LDAPOID
       -- 4.1.3.  Distinguished Name and Relative Distinguished Name
     , LDAPDN
- -- , RelativeLDAPDN
+    , RelativeLDAPDN
       -- 4.1.4.  Attribute Descriptions
     , AttributeDescription
       -- 4.1.5.  Attribute Value
@@ -52,7 +52,7 @@ module LDAPv3
     , AssertionValue
       -- 4.1.7.  Attribute and PartialAttribute
     , PartialAttribute(..)
- -- , Attribute
+    , Attribute(..)
       -- 4.1.8.  Matching Rule Identifier
     , MatchingRuleId
       -- 4.1.9.  Result Message
@@ -100,12 +100,15 @@ module LDAPv3
 
       -- ** Modify Operation   (<https://tools.ietf.org/html/rfc4511#section-4.6 RFC4511 Section 4.6>)
 
---  , ModifyRequest
+    , ModifyRequest(..)
+    , Change(..)
+    , Operation(..)
     , ModifyResponse
 
       -- ** Add Operation   (<https://tools.ietf.org/html/rfc4511#section-4.7 RFC4511 Section 4.7>)
 
---  , AddRequest
+    , AddRequest(..)
+    , AttributeList
     , AddResponse
 
       -- ** Delete Operation   (<https://tools.ietf.org/html/rfc4511#section-4.8 RFC4511 Section 4.8>)
@@ -115,7 +118,7 @@ module LDAPv3
 
       -- ** Modify DN Operation   (<https://tools.ietf.org/html/rfc4511#section-4.9 RFC4511 Section 4.9>)
 
---  , ModifyDNRequest
+    , ModifyDNRequest(..)
     , ModifyDNResponse
 
       -- ** Compare Operation   (<https://tools.ietf.org/html/rfc4511#section-4.10 RFC4511 Section 4.10>)
@@ -226,7 +229,6 @@ type MaxInt = 2147483647
 
 -- | @CHOICE@ type inlined in @LDAPMessage.protocolOp@  (<https://tools.ietf.org/html/rfc4511#section-4.1.1 RFC4511 Section 4.1.1>)
 --
--- __NOTE__: Not all operations have been implemented yet
 data ProtocolOp
   = ProtocolOp'bindRequest     BindRequest
   | ProtocolOp'bindResponse    BindResponse
@@ -235,13 +237,13 @@ data ProtocolOp
   | ProtocolOp'searchResEntry  SearchResultEntry
   | ProtocolOp'searchResDone   SearchResultDone
   | ProtocolOp'searchResRef    SearchResultReference
---  | ProtocolOp'modifyRequest   ModifyRequest
+  | ProtocolOp'modifyRequest   ModifyRequest
   | ProtocolOp'modifyResponse  ModifyResponse
---  | ProtocolOp'addRequest      AddRequest
+  | ProtocolOp'addRequest      AddRequest
   | ProtocolOp'addResponse     AddResponse
   | ProtocolOp'delRequest      DelRequest
   | ProtocolOp'delResponse     DelResponse
---  | ProtocolOp'modDNRequest    ModifyDNRequest
+  | ProtocolOp'modDNRequest    ModifyDNRequest
   | ProtocolOp'modDNResponse   ModifyDNResponse
   | ProtocolOp'compareRequest  CompareRequest
   | ProtocolOp'compareResponse CompareResponse
@@ -262,13 +264,13 @@ instance ASN1 ProtocolOp where
     , ProtocolOp'searchResEntry <$> asn1decode
     , ProtocolOp'searchResDone  <$> asn1decode
     , ProtocolOp'searchResRef   <$> asn1decode
---  , ProtocolOp'modifyRequest  <$> asn1decode
+    , ProtocolOp'modifyRequest  <$> asn1decode
     , ProtocolOp'modifyResponse <$> asn1decode
---  , ProtocolOp'addRequest     <$> asn1decode
+    , ProtocolOp'addRequest     <$> asn1decode
     , ProtocolOp'addResponse    <$> asn1decode
     , ProtocolOp'delRequest     <$> asn1decode
     , ProtocolOp'delResponse    <$> asn1decode
---  , ProtocolOp'modDNRequest   <$> asn1decode
+    , ProtocolOp'modDNRequest   <$> asn1decode
     , ProtocolOp'modDNResponse  <$> asn1decode
     , ProtocolOp'compareRequest <$> asn1decode
     , ProtocolOp'compareResponse <$> asn1decode
@@ -286,13 +288,13 @@ instance ASN1 ProtocolOp where
     ProtocolOp'searchResEntry v -> asn1encode v
     ProtocolOp'searchResDone  v -> asn1encode v
     ProtocolOp'searchResRef   v -> asn1encode v
---  ProtocolOp'modifyRequest  v -> asn1encode v
+    ProtocolOp'modifyRequest  v -> asn1encode v
     ProtocolOp'modifyResponse v -> asn1encode v
---  ProtocolOp'addRequest     v -> asn1encode v
+    ProtocolOp'addRequest     v -> asn1encode v
     ProtocolOp'addResponse    v -> asn1encode v
     ProtocolOp'delRequest     v -> asn1encode v
     ProtocolOp'delResponse    v -> asn1encode v
---  ProtocolOp'modDNRequest   v -> asn1encode v
+    ProtocolOp'modDNRequest   v -> asn1encode v
     ProtocolOp'modDNResponse  v -> asn1encode v
     ProtocolOp'compareRequest v -> asn1encode v
     ProtocolOp'compareResponse v -> asn1encode v
@@ -776,6 +778,25 @@ instance ASN1 PartialAttribute where
   asn1decodeCompOf = PartialAttribute <$> asn1decode <*> asn1decode
   asn1encodeCompOf (PartialAttribute v1 v2) = asn1encodeCompOf (v1,v2)
 
+
+{- | Attribute  (<https://tools.ietf.org/html/rfc4511#section-4.1.7 RFC4511 Section 4.1.7>)
+
+> Attribute ::= PartialAttribute(WITH COMPONENTS {
+>      ...,
+>      vals (SIZE(1..MAX))})
+
+-}
+data Attribute = Attribute
+  { _Attribute'type :: AttributeDescription
+  , _Attribute'vals :: SET1 AttributeValue
+  } deriving (Generic,Show,Eq)
+
+instance NFData Attribute
+
+instance ASN1 Attribute where
+  asn1decodeCompOf = Attribute <$> asn1decode <*> asn1decode
+  asn1encodeCompOf (Attribute v1 v2) = asn1encodeCompOf (v1,v2)
+
 ----------------------------------------------------------------------------
 
 {- | Search Result Done  (<https://tools.ietf.org/html/rfc4511#section-4.5.2 RFC4511 Section 4.5.2>)
@@ -892,6 +913,65 @@ type LDAPString = ShortText
 -}
 type LDAPDN = LDAPString
 
+{- | Relative Distinguished Name  (<https://tools.ietf.org/html/rfc4511#section-4.1.3 RFC4511 Section 4.1.3>)
+
+> RelativeLDAPDN ::= LDAPString -- Constrained to <name-component>
+>                               -- [RFC4514]
+
+-}
+type RelativeLDAPDN = LDAPString
+
+{- | Modify Operation  (<https://tools.ietf.org/html/rfc4511#section-4.6 RFC4511 Section 4.6>)
+
+> ModifyRequest ::= [APPLICATION 6] SEQUENCE {
+>      object          LDAPDN,
+>      changes         SEQUENCE OF change SEQUENCE {
+>           operation       ENUMERATED {
+>                add     (0),
+>                delete  (1),
+>                replace (2),
+>                ...  },
+>           modification    PartialAttribute } }
+
+-}
+data ModifyRequest = ModifyRequest
+  { _ModifyRequest'object  :: LDAPDN
+  , _ModifyRequest'changes :: [Change]
+  } deriving (Generic,Show,Eq)
+
+instance NFData ModifyRequest
+
+instance ASN1 ModifyRequest where
+  asn1defTag _ = Application 6
+  asn1decodeCompOf = ModifyRequest <$> asn1decode <*> asn1decode
+  asn1encodeCompOf (ModifyRequest v1 v2) = asn1encodeCompOf (v1,v2)
+
+-- | See 'ModifyRequest'
+data Change = Change
+  { _Change'operation    :: Operation
+  , _Change'modification :: PartialAttribute
+  } deriving (Generic,Show,Eq)
+
+instance NFData Change
+
+instance ASN1 Change where
+  asn1decodeCompOf = Change <$> asn1decode <*> asn1decode
+  asn1encodeCompOf (Change v1 v2) = asn1encodeCompOf (v1,v2)
+
+-- | See 'ModifyRequest' and 'Change'
+data Operation
+  = Operation'add
+  | Operation'delete
+  | Operation'replace
+  deriving (Generic,Bounded,Enum,Show,Eq)
+
+instance NFData Operation where
+  rnf = rwhnf
+
+instance ASN1 Operation where
+  asn1decode = dec'BoundedEnum
+  asn1encode = enc'BoundedEnum
+
 
 {- | Modify Response  (<https://tools.ietf.org/html/rfc4511#section-4.6 RFC4511 Section 4.6>)
 
@@ -900,12 +980,39 @@ type LDAPDN = LDAPString
 -}
 type ModifyResponse = ('APPLICATION 7 `IMPLICIT` LDAPResult)
 
+{- | Add Operation  (<https://tools.ietf.org/html/rfc4511#section-4.7 RFC4511 Section 4.7>)
+
+> AddRequest ::= [APPLICATION 8] SEQUENCE {
+>      entry           LDAPDN,
+>      attributes      AttributeList }
+
+-}
+data AddRequest = AddRequest
+  { _AddRequest'entry      :: LDAPDN
+  , _AddRequest'attributes :: AttributeList
+  } deriving (Generic,Show,Eq)
+
+instance NFData AddRequest
+
+instance ASN1 AddRequest where
+  asn1defTag _ = Application 8
+  asn1decodeCompOf = AddRequest <$> asn1decode <*> asn1decode
+  asn1encodeCompOf (AddRequest v1 v2) = asn1encodeCompOf (v1,v2)
+
+{- | Attribute List
+
+> AttributeList ::= SEQUENCE OF attribute Attribute
+
+-}
+type AttributeList = [Attribute]
+
 {- | Add Response  (<https://tools.ietf.org/html/rfc4511#section-4.7 RFC4511 Section 4.7>)
 
 > AddResponse ::= [APPLICATION 9] LDAPResult
 
 -}
 type AddResponse = ('APPLICATION 9 `IMPLICIT` LDAPResult)
+
 
 {- | Delete Operation  (<https://tools.ietf.org/html/rfc4511#section-4.8 RFC4511 Section 4.8>)
 
@@ -920,6 +1027,29 @@ type DelRequest = ('APPLICATION 10 `IMPLICIT` LDAPDN)
 
 -}
 type DelResponse = ('APPLICATION 11 `IMPLICIT` LDAPResult)
+
+{- | Modify DN Operation  (<https://tools.ietf.org/html/rfc4511#section-4.9 RFC4511 Section 4.9>)
+
+ModifyDNRequest ::= [APPLICATION 12] SEQUENCE {
+     entry           LDAPDN,
+     newrdn          RelativeLDAPDN,
+     deleteoldrdn    BOOLEAN,
+     newSuperior     [0] LDAPDN OPTIONAL }
+
+-}
+data ModifyDNRequest = ModifyDNRequest
+  { _ModifyDNRequest'entry        :: LDAPDN
+  , _ModifyDNRequest'newrdn       :: RelativeLDAPDN
+  , _ModifyDNRequest'deleteoldrdn :: Bool
+  , _ModifyDNRequest'newSuperior  :: Maybe ('CONTEXTUAL 0 `IMPLICIT` LDAPDN)
+  } deriving (Generic,Show,Eq)
+
+instance NFData ModifyDNRequest
+
+instance ASN1 ModifyDNRequest where
+  asn1defTag _ = Application 12
+  asn1decodeCompOf = ModifyDNRequest <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
+  asn1encodeCompOf (ModifyDNRequest v1 v2 v3 v4) = asn1encodeCompOf (v1,v2,v3,v4)
 
 
 {- | Modify DN Response  (<https://tools.ietf.org/html/rfc4511#section-4.9 RFC4511 Section 4.9>)
