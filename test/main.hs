@@ -129,13 +129,11 @@ unitTests = testGroup "Reference samples"
                             { bindRequest'version = 3
                             , bindRequest'name = ""
                             , bindRequest'authentication = AuthenticationChoice'sasl
-                                ( IMPLICIT
                                     ( SaslCredentials
                                         { _SaslCredentials'mechanism = "DIGEST-MD5"
                                         , _SaslCredentials'credentials = Nothing
                                         }
                                     )
-                                )
                             }
                         )
                     , _LDAPMessage'controls = Nothing
@@ -209,7 +207,7 @@ unitTests = testGroup "Reference samples"
                             , _SearchRequest'sizeLimit = 0
                             , _SearchRequest'timeLimit = 0
                             , _SearchRequest'typesOnly = False
-                            , _SearchRequest'filter = Filter'present ( IMPLICIT "objectclass" )
+                            , _SearchRequest'filter = Filter'present "objectclass"
                             , _SearchRequest'attributes = []
                             }
                         )
@@ -230,17 +228,13 @@ unitTests = testGroup "Reference samples"
                             , _SearchRequest'timeLimit = 0
                             , _SearchRequest'typesOnly = False
                             , _SearchRequest'filter = Filter'not
-                                ( EXPLICIT
                                     ( Filter'equalityMatch
-                                        ( IMPLICIT
                                             ( AttributeValueAssertion
                                                 { _AttributeValueAssertion'attributeDesc = "objectClass"
                                                 , _AttributeValueAssertion'assertionValue = "person"
                                                 }
                                             )
-                                        )
                                     )
-                                )
                             , _SearchRequest'attributes = []
                             }
                         )
@@ -261,51 +255,41 @@ unitTests = testGroup "Reference samples"
                             , _SearchRequest'timeLimit = 0
                             , _SearchRequest'typesOnly = False
                             , _SearchRequest'filter = Filter'and
-                                ( IMPLICIT
                                     ( SET1
                                         ( Filter'not
-                                            ( EXPLICIT
                                                 ( Filter'or
-                                                    ( IMPLICIT
                                                         ( SET1
                                                             ( Filter'extensibleMatch
-                                                                ( IMPLICIT
                                                                     ( MatchingRuleAssertion
                                                                         { _MatchingRuleAssertion'matchingRule = Nothing
-                                                                        , _MatchingRuleAssertion'type = Just ( IMPLICIT "ou" )
-                                                                        , _MatchingRuleAssertion'matchValue = IMPLICIT "ResearchAndDevelopment"
-                                                                        , _MatchingRuleAssertion'dnAttributes = IMPLICIT (BOOLEAN True)
+                                                                        , _MatchingRuleAssertion'type = Just "ou"
+                                                                        , _MatchingRuleAssertion'matchValue = "ResearchAndDevelopment"
+                                                                        , _MatchingRuleAssertion'dnAttributes = True
                                                                         }
                                                                     )
-                                                                ) :|
+                                                                :|
                                                                 [ Filter'extensibleMatch
-                                                                    ( IMPLICIT
                                                                         ( MatchingRuleAssertion
                                                                             { _MatchingRuleAssertion'matchingRule = Nothing
-                                                                            , _MatchingRuleAssertion'type = Just ( IMPLICIT "ou" )
-                                                                            , _MatchingRuleAssertion'matchValue = IMPLICIT "HumanResources"
-                                                                            , _MatchingRuleAssertion'dnAttributes = IMPLICIT (BOOLEAN True)
+                                                                            , _MatchingRuleAssertion'type = Just "ou"
+                                                                            , _MatchingRuleAssertion'matchValue = "HumanResources"
+                                                                            , _MatchingRuleAssertion'dnAttributes = True
                                                                             }
                                                                         )
-                                                                    )
                                                                 ]
                                                             )
                                                         )
-                                                    )
                                                 )
-                                            ) :|
+                                            :|
                                             [ Filter'equalityMatch
-                                                ( IMPLICIT
                                                     ( AttributeValueAssertion
                                                         { _AttributeValueAssertion'attributeDesc = "objectClass"
                                                         , _AttributeValueAssertion'assertionValue = "person"
                                                         }
                                                     )
-                                                )
                                             ]
                                         )
                                     )
-                                )
                             , _SearchRequest'attributes = []
                             }
                         )
@@ -327,7 +311,6 @@ unitTests = testGroup "Reference samples"
                             , _SearchRequest'timeLimit = 0
                             , _SearchRequest'typesOnly = False
                             , _SearchRequest'filter = Filter'substrings
-                                ( IMPLICIT
                                     ( SubstringFilter
                                         { _SubstringFilter'type = "cn"
                                         , _SubstringFilter'substrings =
@@ -337,7 +320,6 @@ unitTests = testGroup "Reference samples"
                                             ]
                                         }
                                     )
-                                )
                             , _SearchRequest'attributes = []
                             }
                         )
@@ -412,7 +394,6 @@ unitTests = testGroup "Reference samples"
       , hex"30 0c 02 01 02 65 07 0a 01 00 04 00 04 00"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 2
                     , _LDAPMessage'protocolOp = ProtocolOp'searchResDone
-                        ( IMPLICIT
                             ( LDAPResult
                                 { _LDAPResult'resultCode = ResultCode'success
                                 , _LDAPResult'matchedDN = ""
@@ -420,7 +401,6 @@ unitTests = testGroup "Reference samples"
                                 , _LDAPResult'referral = Nothing
                                 }
                             )
-                        )
                     , _LDAPMessage'controls = Nothing
                     }
       )
@@ -429,7 +409,6 @@ unitTests = testGroup "Reference samples"
       , hex"30 0c 02 01 02 65 07 0a 01 20 04 00 04 00"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 2
                     , _LDAPMessage'protocolOp = ProtocolOp'searchResDone
-                        ( IMPLICIT
                             ( LDAPResult
                                 { _LDAPResult'resultCode = ResultCode'noSuchObject
                                 , _LDAPResult'matchedDN = ""
@@ -437,7 +416,6 @@ unitTests = testGroup "Reference samples"
                                 , _LDAPResult'referral = Nothing
                                 }
                             )
-                        )
                     , _LDAPMessage'controls = Nothing
                     }
       )
@@ -445,7 +423,7 @@ unitTests = testGroup "Reference samples"
     , ( "unbindRequest"
       , hex"30 05 02 01 03 42 00"
       , LDAPMessage { _LDAPMessage'messageID = MessageID 3
-                    , _LDAPMessage'protocolOp = ProtocolOp'unbindRequest (IMPLICIT ())
+                    , _LDAPMessage'protocolOp = ProtocolOp'unbindRequest ()
                     , _LDAPMessage'controls = Nothing
                     }
       )

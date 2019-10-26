@@ -112,7 +112,7 @@ uintFromInteger i
 
 -- | Try to coerce a base-type into its 'UInt' sub-type
 --
--- If out of range, @'Left' 'Underflow'@ or @'Right' 'Overflow'@ will be returned.
+-- If out of range, @'Left' 'Underflow'@ or @'Left' 'Overflow'@ will be returned respectively.
 toUInt :: forall lb ub t . (UIntBounds lb ub t, Num t, Ord t) => t -> Either ArithException (UInt lb ub t)
 toUInt i
   | i' < minBound = Left Underflow

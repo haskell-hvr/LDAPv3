@@ -19,7 +19,7 @@
 module LDAPv3.ResultCode (ResultCode(..)) where
 
 import           Common
-import           Data.ASN1       (ASN1 (..), ENUMERATED (..), Enumerated (..))
+import           Data.ASN1       (Enumerated (..))
 import qualified Data.Map.Strict as Map
 import           Data.Tuple      (swap)
 
@@ -130,10 +130,6 @@ data ResultCode
 
 instance NFData ResultCode where
   rnf = rwhnf
-
-instance ASN1 ResultCode where
-  asn1decode = (\(ENUMERATED x) -> x) <$> asn1decode
-  asn1encode = asn1encode . ENUMERATED
 
 instance Enumerated ResultCode where
   toEnumerated   = Map.lookup `flip` toEnumeratedMap

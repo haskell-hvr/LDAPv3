@@ -33,13 +33,13 @@ instance Arbitrary TS.ShortText where
   arbitrary = TS.fromText <$> arbitrary
   shrink t = map TS.fromText (shrink (TS.toText t))
 
-instance Arbitrary x => Arbitrary (IMPLICIT tag x) where
-  arbitrary = IMPLICIT <$> arbitrary
-  shrink (IMPLICIT x) = coerce (shrink x)
+-- instance Arbitrary x => Arbitrary (IMPLICIT tag x) where
+--   arbitrary = IMPLICIT <$> arbitrary
+--   shrink (IMPLICIT x) = coerce (shrink x)
 
-instance Arbitrary x => Arbitrary (EXPLICIT tag x) where
-  arbitrary = EXPLICIT <$> arbitrary
-  shrink (EXPLICIT x) = coerce (shrink x)
+-- instance Arbitrary x => Arbitrary (EXPLICIT tag x) where
+--   arbitrary = EXPLICIT <$> arbitrary
+--   shrink (EXPLICIT x) = coerce (shrink x)
 
 instance Arbitrary x => Arbitrary (SET x) where
   arbitrary = SET <$> arbitrary
@@ -72,8 +72,8 @@ instance Arbitrary LDAPMessage where
   arbitrary = LDAPMessage <$> arbitrary <*> arbitrary <*> arbitrary
   shrink = genericShrink
 
-instance Arbitrary (BOOLEAN_DEFAULT b) where
-  arbitrary = BOOLEAN <$> arbitrary
+-- instance Arbitrary (BOOLEAN_DEFAULT b) where
+--   arbitrary = BOOLEAN <$> arbitrary
 
 instance Arbitrary Control where
   arbitrary = Control <$> arbitrary <*> arbitrary <*> arbitrary
