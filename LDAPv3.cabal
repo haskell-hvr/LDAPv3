@@ -10,6 +10,7 @@ copyright:           © 2018-2019 Herbert Valerio Riedel
 maintainer:          hvr@gnu.org
 bug-reports:         https://github.com/hvr/LDAPv3/issues
 category:            Network
+tested-with:         GHC==8.8.1, GHC==8.6.5, GHC==8.4.4, GHC==8.2.2, GHC==8.0.2, GHC==7.10.3
 description:
   This library provides a pure Haskell implementation of the /Lightweight Directory Access Protocol (LDAP)/ version 3 as specified in <https://tools.ietf.org/html/rfc4511 RFC4511>.
   .
