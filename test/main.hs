@@ -20,7 +20,7 @@
 
 module Main (main) where
 
-import           LDAPv3
+import           LDAPv3.Message
 
 import qualified Codec.Base16          as B16
 import           Data.Binary           as Bin

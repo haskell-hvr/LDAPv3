@@ -21,7 +21,7 @@
 
 module Arbitrary () where
 
-import           LDAPv3
+import           LDAPv3.Message
 
 import           Data.Coerce               (coerce)
 import           Data.Int

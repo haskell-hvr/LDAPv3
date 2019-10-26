@@ -30,7 +30,7 @@
 --
 -- are most useful.
 --
-module LDAPv3
+module LDAPv3.Message
     ( -- * LDAPv3 Protocol data structures
       --
       -- | The Haskell data structures defined in this module closely follow the protocol specification as laid out in <https://tools.ietf.org/html/rfc4511 RFC4511>.

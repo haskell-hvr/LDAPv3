@@ -63,7 +63,7 @@ library
 
   hs-source-dirs: src
   exposed-modules:
-      LDAPv3
+      LDAPv3.Message
   other-modules:
       Common
       Data.Int.Subtypes
