@@ -179,6 +179,7 @@ module MODULE_NAME
     , EXPLICIT(..)
     , IMPLICIT(..)
     , ENUMERATED(..)
+    , CHOICE(..)
     , TagK(..)
 
       -- * Unsigned integer sub-type
@@ -197,9 +198,9 @@ import qualified Data.Binary              as Bin
 
 import           Data.ASN1                (Enumerated, NULL, OCTET_STRING, SET (..), SET1 (..))
 #if defined(HS_LDAPv3_ANNOTATED)
-import           Data.ASN1                (ASN1 (..), ASN1Constructed, BOOLEAN_DEFAULT (..),
+import           Data.ASN1                (ASN1 (..), ASN1Constructed, BOOLEAN_DEFAULT (..), CHOICE (..),
                                            COMPONENTS_OF (..), ENUMERATED (..), EXPLICIT (..), IMPLICIT (..),
-                                           dec'CHOICE, toBinaryGet, toBinaryPut)
+                                           gasn1decodeChoice, gasn1encodeChoice, toBinaryGet, toBinaryPut)
 import           Data.ASN1.Prim           (Tag (..))
 #else /* defined(HS_LDAPv3_ANNOTATED) */
 import qualified LDAPv3.Message.Annotated as Annotated (LDAPMessage)
@@ -219,6 +220,9 @@ type BOOLEAN_DEFAULT (def :: Bool) = Bool
 
 -- | ASN.1 @COMPONENTS OF@ Annotation
 type COMPONENTS_OF x = x
+
+-- | ASN.1 @CHOICE@ Annotation
+type CHOICE x = x
 
 #endif /* defined(HS_LDAPv3_ANNOTATED) */
 
@@ -257,7 +261,7 @@ type COMPONENTS_OF x = x
 -}
 data LDAPMessage = LDAPMessage
   { _LDAPMessage'messageID  :: MessageID
-  , _LDAPMessage'protocolOp :: ProtocolOp
+  , _LDAPMessage'protocolOp :: CHOICE ProtocolOp
   , _LDAPMessage'controls   :: Maybe ('CONTEXTUAL 0 `IMPLICIT` Controls)
   } deriving (Generic,Show,Eq)
 
@@ -323,56 +327,6 @@ data ProtocolOp
   deriving (Generic,Show,Eq)
 
 instance NFData ProtocolOp
-
-#if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 ProtocolOp where
-  asn1decode = dec'CHOICE
-    [ ProtocolOp'bindRequest    <$> asn1decode
-    , ProtocolOp'bindResponse   <$> asn1decode
-    , ProtocolOp'unbindRequest  <$> asn1decode
-    , ProtocolOp'searchRequest  <$> asn1decode
-    , ProtocolOp'searchResEntry <$> asn1decode
-    , ProtocolOp'searchResDone  <$> asn1decode
-    , ProtocolOp'searchResRef   <$> asn1decode
-    , ProtocolOp'modifyRequest  <$> asn1decode
-    , ProtocolOp'modifyResponse <$> asn1decode
-    , ProtocolOp'addRequest     <$> asn1decode
-    , ProtocolOp'addResponse    <$> asn1decode
-    , ProtocolOp'delRequest     <$> asn1decode
-    , ProtocolOp'delResponse    <$> asn1decode
-    , ProtocolOp'modDNRequest   <$> asn1decode
-    , ProtocolOp'modDNResponse  <$> asn1decode
-    , ProtocolOp'compareRequest <$> asn1decode
-    , ProtocolOp'compareResponse <$> asn1decode
-    , ProtocolOp'abandonRequest <$> asn1decode
-    , ProtocolOp'extendedReq    <$> asn1decode
-    , ProtocolOp'extendedResp   <$> asn1decode
-    , ProtocolOp'intermediateResponse <$> asn1decode
-    ]
-
-  asn1encode = \case
-    ProtocolOp'bindRequest    v -> asn1encode v
-    ProtocolOp'bindResponse   v -> asn1encode v
-    ProtocolOp'unbindRequest  v -> asn1encode v
-    ProtocolOp'searchRequest  v -> asn1encode v
-    ProtocolOp'searchResEntry v -> asn1encode v
-    ProtocolOp'searchResDone  v -> asn1encode v
-    ProtocolOp'searchResRef   v -> asn1encode v
-    ProtocolOp'modifyRequest  v -> asn1encode v
-    ProtocolOp'modifyResponse v -> asn1encode v
-    ProtocolOp'addRequest     v -> asn1encode v
-    ProtocolOp'addResponse    v -> asn1encode v
-    ProtocolOp'delRequest     v -> asn1encode v
-    ProtocolOp'delResponse    v -> asn1encode v
-    ProtocolOp'modDNRequest   v -> asn1encode v
-    ProtocolOp'modDNResponse  v -> asn1encode v
-    ProtocolOp'compareRequest v -> asn1encode v
-    ProtocolOp'compareResponse v -> asn1encode v
-    ProtocolOp'abandonRequest v -> asn1encode v
-    ProtocolOp'extendedReq    v -> asn1encode v
-    ProtocolOp'extendedResp   v -> asn1encode v
-    ProtocolOp'intermediateResponse v -> asn1encode v
-#endif
 
 ----------------------------------------------------------------------------
 
@@ -456,13 +410,8 @@ instance NFData AuthenticationChoice
 
 #if defined(HS_LDAPv3_ANNOTATED)
 instance ASN1 AuthenticationChoice where
-  asn1decode = dec'CHOICE
-    [ AuthenticationChoice'simple <$> asn1decode
-    , AuthenticationChoice'sasl   <$> asn1decode
-    ]
-  asn1encode = \case
-    AuthenticationChoice'simple v -> asn1encode v
-    AuthenticationChoice'sasl   v -> asn1encode v
+  asn1decode = gasn1decodeChoice
+  asn1encode = gasn1encodeChoice
 #endif
 
 {- | See 'AuthenticationChoice'
@@ -619,29 +568,8 @@ instance NFData Filter
 
 #if defined(HS_LDAPv3_ANNOTATED)
 instance ASN1 Filter where
-  asn1decode = dec'CHOICE
-    [ Filter'and             <$> asn1decode
-    , Filter'or              <$> asn1decode
-    , Filter'not             <$> asn1decode
-    , Filter'equalityMatch   <$> asn1decode
-    , Filter'substrings      <$> asn1decode
-    , Filter'greaterOrEqual  <$> asn1decode
-    , Filter'lessOrEqual     <$> asn1decode
-    , Filter'present         <$> asn1decode
-    , Filter'approxMatch     <$> asn1decode
-    , Filter'extensibleMatch <$> asn1decode
-    ]
-  asn1encode = \case
-    Filter'and             v -> asn1encode v
-    Filter'or              v -> asn1encode v
-    Filter'not             v -> asn1encode v
-    Filter'equalityMatch   v -> asn1encode v
-    Filter'substrings      v -> asn1encode v
-    Filter'greaterOrEqual  v -> asn1encode v
-    Filter'lessOrEqual     v -> asn1encode v
-    Filter'present         v -> asn1encode v
-    Filter'approxMatch     v -> asn1encode v
-    Filter'extensibleMatch v -> asn1encode v
+  asn1decode = gasn1decodeChoice
+  asn1encode = gasn1encodeChoice
 #endif
 
 {- | Attribute Descriptions  (<https://tools.ietf.org/html/rfc4511#section-4.1.4 RFC4511 Section 4.1.4>)
@@ -701,7 +629,7 @@ Specifically, the invariant stated by the specification is:
 -}
 data SubstringFilter = SubstringFilter
   { _SubstringFilter'type       :: AttributeDescription
-  , _SubstringFilter'substrings :: NonEmpty Substring
+  , _SubstringFilter'substrings :: NonEmpty (CHOICE Substring)
   } deriving (Generic,Show,Eq)
 
 instance NFData SubstringFilter
@@ -719,19 +647,6 @@ data Substring
   deriving (Generic,Show,Eq)
 
 instance NFData Substring
-
-#if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 Substring where
-  asn1decode = dec'CHOICE
-    [ Substring'initial <$> asn1decode
-    , Substring'any     <$> asn1decode
-    , Substring'final   <$> asn1decode
-    ]
-  asn1encode = \case
-    Substring'initial v -> asn1encode v
-    Substring'any     v -> asn1encode v
-    Substring'final   v -> asn1encode v
-#endif
 
 {- | Matching Rule Identifier  (<https://tools.ietf.org/html/rfc4511#section-4.1.8 RFC4511 Section 4.1.8>)
 

@@ -28,23 +28,33 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Data.ASN1
     ( ASN1(..)
-    , ASN1Decode
-    , ASN1Encode
     , ASN1Constructed(..)
 
-    , asn1fail
+    , ASN1Decode
+    , ASN1Encode
 
-      -- GEnerics support
+    , toBinaryPut
+    , toBinaryGet
+
+      -- Generics support
+
     , GASN1EncodeCompOf, gasn1encodeCompOf
     , GASN1DecodeCompOf, gasn1decodeCompOf
+
+    , GASN1EncodeChoice, gasn1encodeChoice
+    , GASN1DecodeChoice, gasn1decodeChoice
+
+      -- type-level combinators
 
     , ENUMERATED(..), Enumerated(..)
     , IMPLICIT(..), implicit
     , EXPLICIT(..), explicit
     , COMPONENTS_OF(..)
+    , CHOICE(..)
 
     , OCTET_STRING
     , NULL
@@ -55,9 +65,9 @@ module Data.ASN1
     , SET(..)
     , SET1(..)
 
-    , toBinaryPut
-    , toBinaryGet
+      -- term-level combinators
 
+    , asn1fail
     , retag, wraptag
 
     , dec'SEQUENCE
@@ -80,7 +90,7 @@ module Data.ASN1
 import           Common
 import           Data.ASN1.Prim
 import           Data.Int.Subtypes
-import           GHC.Generics          ((:*:) (..), K1 (..), M1 (..), Rep, from, to)
+import           GHC.Generics          ((:*:) (..), (:+:) (..), K1 (..), M1 (..), Rep, V1, from, to)
 
 import           Data.Binary           as Bin
 import           Data.Binary.Get       as Bin
@@ -610,6 +620,17 @@ instance ASN1Constructed t => ASN1 (COMPONENTS_OF t) where
   asn1decode = COMPONENTS_OF <$> asn1decodeCompOf
   asn1encode (COMPONENTS_OF v) = asn1encodeCompOf v
 
+-- | ASN.1 @CHOICE@ Annotation
+newtype CHOICE x = CHOICE x
+  deriving (Generic,NFData,Show,Eq,Ord)
+
+instance Newtype (CHOICE x) x
+
+instance (Generic t, GASN1EncodeChoice (Rep t), GASN1DecodeChoice (Rep t)) => ASN1 (CHOICE t) where
+  asn1defTag _ = undefined
+  asn1decode = CHOICE <$> gasn1decodeChoice
+  asn1encode (CHOICE v) = gasn1encodeChoice v
+
 ----------------------------------------------------------------------------
 
 class ASN1 t where
@@ -835,6 +856,9 @@ instance KnownBool 'False where boolVal _ = False
 ----------------------------------------------------------------------------
 -- Generics support
 
+----------------------------------
+-- product types (i.e. SEQUENCE)
+
 class GASN1EncodeCompOf (t :: * -> *) where
   gasn1encodeCompOf' :: t p -> ASN1Encode Word64
 
@@ -865,3 +889,45 @@ instance GASN1DecodeCompOf f => GASN1DecodeCompOf (M1 i c f) where
 
 instance (GASN1DecodeCompOf f, GASN1DecodeCompOf g) => GASN1DecodeCompOf (f :*: g) where
   gasn1decodeCompOf' = (:*:) <$> gasn1decodeCompOf' <*> gasn1decodeCompOf'
+
+
+----------------------------
+-- sum types (i.e. CHOICE)
+
+gasn1encodeChoice :: (Generic t, GASN1EncodeChoice (Rep t)) => t -> ASN1Encode Word64
+gasn1encodeChoice x = gchoice (from x)
+
+class GASN1EncodeChoice (t :: * -> *) where
+  gchoice :: t p -> ASN1Encode Word64
+
+instance GASN1EncodeChoice V1 where
+  gchoice _ = empty'ASN1Encode
+
+instance GASN1EncodeChoice f => GASN1EncodeChoice (M1 i c f) where
+  gchoice (M1 x) = gchoice x
+
+instance ASN1 a => GASN1EncodeChoice (K1 i a) where
+  gchoice (K1 x) = asn1encode x
+
+instance (GASN1EncodeChoice x, GASN1EncodeChoice y) => GASN1EncodeChoice (x :+: y) where
+  gchoice (L1 x) = gchoice x
+  gchoice (R1 x) = gchoice x
+
+
+gasn1decodeChoice :: (Generic t, GASN1DecodeChoice (Rep t)) => ASN1Decode t
+gasn1decodeChoice = to <$> gunchoice
+
+class GASN1DecodeChoice (t :: * -> *) where
+  gunchoice :: ASN1Decode (t p)
+
+instance GASN1DecodeChoice V1 where
+  gunchoice = empty
+
+instance GASN1DecodeChoice f => GASN1DecodeChoice (M1 i c f) where
+  gunchoice = M1 <$> gunchoice
+
+instance ASN1 a => GASN1DecodeChoice (K1 i a) where
+  gunchoice = K1 <$> asn1decode
+
+instance (GASN1DecodeChoice x, GASN1DecodeChoice y) => GASN1DecodeChoice (x :+: y) where
+  gunchoice = (L1 <$> gunchoice) <|> (R1 <$> gunchoice)
