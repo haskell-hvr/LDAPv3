@@ -33,6 +33,13 @@ module Data.ASN1
     ( ASN1(..)
     , ASN1Decode
     , ASN1Encode
+    , ASN1Constructed(..)
+
+    , asn1fail
+
+      -- GEnerics support
+    , GASN1EncodeCompOf, gasn1encodeCompOf
+    , GASN1DecodeCompOf, gasn1decodeCompOf
 
     , ENUMERATED(..), Enumerated(..)
     , IMPLICIT(..), implicit
@@ -73,6 +80,7 @@ module Data.ASN1
 import           Common
 import           Data.ASN1.Prim
 import           Data.Int.Subtypes
+import           GHC.Generics          ((:*:) (..), K1 (..), M1 (..), Rep, from, to)
 
 import           Data.Binary           as Bin
 import           Data.Binary.Get       as Bin
@@ -132,6 +140,11 @@ enc'SEQUENCE_COMPS xs0 = ASN1Encode $ \case
     go (ASN1Encode x:xs) sz = do
       n1 <- x Nothing
       go xs (sz+n1)
+
+instance Semigroup (ASN1Encode Word64) where
+  ASN1Encode x <> ASN1Encode y = ASN1Encode $ \case
+    Just _  -> error "ASN1Encode append called with tag-override"
+    Nothing -> (+) <$> x Nothing <*> y Nothing
 
 enc'SEQUENCE :: [ASN1Encode Word64] -> ASN1Encode Word64
 enc'SEQUENCE = wraptag (Universal 16) . enc'SEQUENCE_COMPS
@@ -592,91 +605,112 @@ newtype COMPONENTS_OF x = COMPONENTS_OF x
 
 instance Newtype (COMPONENTS_OF x) x
 
-instance ASN1 t => ASN1 (COMPONENTS_OF t) where
+instance ASN1Constructed t => ASN1 (COMPONENTS_OF t) where
   asn1defTag _ = asn1defTag (Proxy :: Proxy t)
-  asn1decode = asn1decodeCompOf
-  asn1decodeCompOf = COMPONENTS_OF <$> asn1decodeCompOf
-  asn1encode = asn1encodeCompOf
-  asn1encodeCompOf (COMPONENTS_OF v) = asn1encodeCompOf v
+  asn1decode = COMPONENTS_OF <$> asn1decodeCompOf
+  asn1encode (COMPONENTS_OF v) = asn1encodeCompOf v
 
 ----------------------------------------------------------------------------
 
 class ASN1 t where
-  asn1decode :: ASN1Decode t
-  asn1decode = dec'Constructed "SEQUENCE" (asn1defTag (Proxy :: Proxy t)) asn1decodeCompOf
-
-  asn1decodeCompOf :: ASN1Decode t
-  asn1decodeCompOf = asn1fail "asn1decodeCompOf not implemented for type"
-
-  asn1encode :: t -> ASN1Encode Word64
-  asn1encode = wraptag (asn1defTag (Proxy :: Proxy t)) . asn1encodeCompOf
-
-  -- constructed contents
-  asn1encodeCompOf :: t -> ASN1Encode Word64
-  asn1encodeCompOf = error "asn1encode(CompOf) not implemented for type"
-
   -- default-tag
   asn1defTag :: Proxy t -> Tag
   asn1defTag _ = Universal 16
 
-  {-# MINIMAL (asn1decode | asn1decodeCompOf), (asn1encode | asn1encodeCompOf) #-}
+  asn1decode :: ASN1Decode t
+  default asn1decode :: ASN1Constructed t => ASN1Decode t
+  asn1decode = dec'Constructed "SEQUENCE" (asn1defTag (Proxy :: Proxy t)) asn1decodeCompOf
 
-instance (ASN1 t1, ASN1 t2) => ASN1 (t1,t2) where
+  asn1encode :: t -> ASN1Encode Word64
+  default asn1encode :: ASN1Constructed t => t -> ASN1Encode Word64
+  asn1encode = wraptag (asn1defTag (Proxy :: Proxy t)) . asn1encodeCompOf
+
+class ASN1 t => ASN1Constructed t where
+  asn1encodeCompOf :: t -> ASN1Encode Word64
+  default asn1encodeCompOf :: (Generic t, GASN1EncodeCompOf (Rep t)) => t -> ASN1Encode Word64
+  asn1encodeCompOf = gasn1encodeCompOf
+
+  asn1decodeCompOf :: ASN1Decode t
+  default asn1decodeCompOf :: (Generic t, GASN1DecodeCompOf (Rep t)) => ASN1Decode t
+  asn1decodeCompOf = gasn1decodeCompOf
+
+gasn1encodeCompOf :: (Generic t, GASN1EncodeCompOf (Rep t)) => t -> ASN1Encode Word64
+gasn1encodeCompOf v = gasn1encodeCompOf' (from v)
+
+gasn1decodeCompOf :: (Generic t, GASN1DecodeCompOf (Rep t)) => ASN1Decode t
+gasn1decodeCompOf = to <$> gasn1decodeCompOf'
+
+----------------------------------------------------------------------------
+
+instance (ASN1 t1, ASN1 t2) => ASN1 (t1,t2)
+instance (ASN1 t1, ASN1 t2) => ASN1Constructed (t1,t2) where
   asn1encodeCompOf (v1,v2) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2]
   asn1decodeCompOf = (,) <$> asn1decode <*> asn1decode
 
-instance (ASN1 t1, ASN1 t2, ASN1 t3) => ASN1 (t1,t2,t3) where
+instance (ASN1 t1, ASN1 t2, ASN1 t3) => ASN1 (t1,t2,t3)
+instance (ASN1 t1, ASN1 t2, ASN1 t3) => ASN1Constructed (t1,t2,t3) where
   asn1encodeCompOf (v1,v2,v3) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3]
   asn1decodeCompOf = (,,) <$> asn1decode <*> asn1decode <*> asn1decode
 
-instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4) => ASN1 (t1,t2,t3,t4) where
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4) => ASN1 (t1,t2,t3,t4)
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4) => ASN1Constructed (t1,t2,t3,t4) where
   asn1encodeCompOf (v1,v2,v3,v4) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4]
   asn1decodeCompOf = (,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
 
-instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5) => ASN1 (t1,t2,t3,t4,t5) where
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5) => ASN1 (t1,t2,t3,t4,t5)
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5) => ASN1Constructed (t1,t2,t3,t4,t5) where
   asn1encodeCompOf (v1,v2,v3,v4,v5) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5]
   asn1decodeCompOf = (,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
 
-instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6) => ASN1 (t1,t2,t3,t4,t5,t6) where
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6) => ASN1 (t1,t2,t3,t4,t5,t6)
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6) => ASN1Constructed (t1,t2,t3,t4,t5,t6) where
   asn1encodeCompOf (v1,v2,v3,v4,v5,v6) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5, asn1encode v6]
   asn1decodeCompOf = (,,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
 
-instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7) => ASN1 (t1,t2,t3,t4,t5,t6,t7) where
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7) => ASN1 (t1,t2,t3,t4,t5,t6,t7)
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7) => ASN1Constructed (t1,t2,t3,t4,t5,t6,t7) where
   asn1encodeCompOf (v1,v2,v3,v4,v5,v6,v7) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5, asn1encode v6, asn1encode v7]
   asn1decodeCompOf = (,,,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
 
-instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8) where
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8)
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8) => ASN1Constructed (t1,t2,t3,t4,t5,t6,t7,t8) where
   asn1encodeCompOf (v1,v2,v3,v4,v5,v6,v7,v8) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5, asn1encode v6, asn1encode v7, asn1encode v8]
   asn1decodeCompOf = (,,,,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
 
-instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9) where
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9)
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9) => ASN1Constructed (t1,t2,t3,t4,t5,t6,t7,t8,t9) where
   asn1encodeCompOf (v1,v2,v3,v4,v5,v6,v7,v8,v9) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5, asn1encode v6, asn1encode v7, asn1encode v8, asn1encode v9]
   asn1decodeCompOf = (,,,,,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
 
-instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10) where
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10)
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10) => ASN1Constructed (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10) where
   asn1encodeCompOf (v1,v2,v3,v4,v5,v6,v7,v8,v9,v10) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5, asn1encode v6, asn1encode v7, asn1encode v8, asn1encode v9, asn1encode v10]
   asn1decodeCompOf = (,,,,,,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
 
-instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11) where
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11)
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11) => ASN1Constructed (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11) where
   asn1encodeCompOf (v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5, asn1encode v6, asn1encode v7, asn1encode v8, asn1encode v9, asn1encode v10, asn1encode v11]
   asn1decodeCompOf = (,,,,,,,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
 
-instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11, ASN1 t12) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12) where
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11, ASN1 t12) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12)
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11, ASN1 t12) => ASN1Constructed (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12) where
   asn1encodeCompOf (v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5, asn1encode v6, asn1encode v7, asn1encode v8, asn1encode v9, asn1encode v10, asn1encode v11, asn1encode v12]
   asn1decodeCompOf = (,,,,,,,,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
 
-instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11, ASN1 t12, ASN1 t13) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13) where
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11, ASN1 t12, ASN1 t13) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13)
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11, ASN1 t12, ASN1 t13) => ASN1Constructed (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13) where
   asn1encodeCompOf (v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12,v13) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5, asn1encode v6, asn1encode v7, asn1encode v8, asn1encode v9, asn1encode v10, asn1encode v11, asn1encode v12, asn1encode v13]
   asn1decodeCompOf = (,,,,,,,,,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
 
-instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11, ASN1 t12, ASN1 t13, ASN1 t14) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14) where
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11, ASN1 t12, ASN1 t13, ASN1 t14) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14)
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11, ASN1 t12, ASN1 t13, ASN1 t14) => ASN1Constructed (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14) where
   asn1encodeCompOf (v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12,v13,v14) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5, asn1encode v6, asn1encode v7, asn1encode v8, asn1encode v9, asn1encode v10, asn1encode v11, asn1encode v12, asn1encode v13, asn1encode v14]
   asn1decodeCompOf = (,,,,,,,,,,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
 
-instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11, ASN1 t12, ASN1 t13, ASN1 t14, ASN1 t15) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14,t15) where
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11, ASN1 t12, ASN1 t13, ASN1 t14, ASN1 t15) => ASN1 (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14,t15)
+instance (ASN1 t1, ASN1 t2, ASN1 t3, ASN1 t4, ASN1 t5, ASN1 t6, ASN1 t7, ASN1 t8, ASN1 t9, ASN1 t10, ASN1 t11, ASN1 t12, ASN1 t13, ASN1 t14, ASN1 t15) => ASN1Constructed (t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14,t15) where
   asn1encodeCompOf (v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12,v13,v14,v15) = enc'SEQUENCE_COMPS [asn1encode v1, asn1encode v2, asn1encode v3, asn1encode v4, asn1encode v5, asn1encode v6, asn1encode v7, asn1encode v8, asn1encode v9, asn1encode v10, asn1encode v11, asn1encode v12, asn1encode v13, asn1encode v14, asn1encode v15]
   asn1decodeCompOf = (,,,,,,,,,,,,,,) <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
-
 
 
 -- | ASN.1 @OCTET STRING@ type
@@ -797,3 +831,37 @@ instance forall def . KnownBool def => ASN1 (BOOLEAN_DEFAULT def) where
 class KnownBool (b :: Bool) where boolVal :: Proxy b -> Bool
 instance KnownBool 'True where boolVal _ = True
 instance KnownBool 'False where boolVal _ = False
+
+----------------------------------------------------------------------------
+-- Generics support
+
+class GASN1EncodeCompOf (t :: * -> *) where
+  gasn1encodeCompOf' :: t p -> ASN1Encode Word64
+
+-- instance GASN1EncodeCompOf U1 where gasn1encodeCompOf' _ = error "GASN1EncodeCompOf U1"
+-- instance GASN1EncodeCompOf V1 where gasn1encodeCompOf' _ = error "GASN1EncodeCompOf V1"
+
+instance ASN1 a => GASN1EncodeCompOf (K1 i a) where
+  gasn1encodeCompOf' (K1 v) = asn1encode v
+
+instance GASN1EncodeCompOf f => GASN1EncodeCompOf (M1 i c f) where
+  gasn1encodeCompOf' (M1 x) = gasn1encodeCompOf' x
+
+instance (GASN1EncodeCompOf f, GASN1EncodeCompOf g) => GASN1EncodeCompOf (f :*: g) where
+  gasn1encodeCompOf' (x1 :*: x2) = gasn1encodeCompOf' x1 <> gasn1encodeCompOf' x2
+
+
+class GASN1DecodeCompOf (t :: * -> *) where
+  gasn1decodeCompOf' :: ASN1Decode (t p)
+
+-- instance GASN1DecodeCompOf U1 where gasn1decodeCompOf' _ = error "GASN1DecodeCompOf U1"
+-- instance GASN1DecodeCompOf V1 where gasn1decodeCompOf' _ = error "GASN1DecodeCompOf V1"
+
+instance ASN1 a => GASN1DecodeCompOf (K1 i a) where
+  gasn1decodeCompOf' = K1 <$> asn1decode
+
+instance GASN1DecodeCompOf f => GASN1DecodeCompOf (M1 i c f) where
+  gasn1decodeCompOf' = M1 <$> gasn1decodeCompOf'
+
+instance (GASN1DecodeCompOf f, GASN1DecodeCompOf g) => GASN1DecodeCompOf (f :*: g) where
+  gasn1decodeCompOf' = (:*:) <$> gasn1decodeCompOf' <*> gasn1decodeCompOf'

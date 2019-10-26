@@ -197,9 +197,9 @@ import qualified Data.Binary              as Bin
 
 import           Data.ASN1                (Enumerated, NULL, OCTET_STRING, SET (..), SET1 (..))
 #if defined(HS_LDAPv3_ANNOTATED)
-import           Data.ASN1                (ASN1 (..), BOOLEAN_DEFAULT (..), COMPONENTS_OF (..),
-                                           ENUMERATED (..), EXPLICIT (..), IMPLICIT (..), dec'CHOICE,
-                                           toBinaryGet, toBinaryPut)
+import           Data.ASN1                (ASN1 (..), ASN1Constructed, BOOLEAN_DEFAULT (..),
+                                           COMPONENTS_OF (..), ENUMERATED (..), EXPLICIT (..), IMPLICIT (..),
+                                           dec'CHOICE, toBinaryGet, toBinaryPut)
 import           Data.ASN1.Prim           (Tag (..))
 #else /* defined(HS_LDAPv3_ANNOTATED) */
 import qualified LDAPv3.Message.Annotated as Annotated (LDAPMessage)
@@ -273,9 +273,8 @@ instance Bin.Binary LDAPMessage where
 #endif
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 LDAPMessage where
-  asn1decodeCompOf = LDAPMessage <$> asn1decode <*> asn1decode <*> asn1decode
-  asn1encodeCompOf (LDAPMessage v1 v2 v3) = asn1encodeCompOf (v1,v2,v3)
+instance ASN1 LDAPMessage
+instance ASN1Constructed LDAPMessage
 #endif
 
 {- | Message ID (<https://tools.ietf.org/html/rfc4511#section-4.1.1.1 RFC4511 Section 4.1.1.1>)
@@ -401,9 +400,8 @@ data Control = Control
 instance NFData Control
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 Control where
-  asn1decodeCompOf = Control <$> asn1decode <*> asn1decode <*> asn1decode
-  asn1encodeCompOf (Control v1 v2 v3) = asn1encodeCompOf (v1,v2,v3)
+instance ASN1 Control
+instance ASN1Constructed Control
 #endif
 
 {- | Object identifier  (<https://tools.ietf.org/html/rfc4511#section-4.1.2 RFC4511 Section 4.1.2>)
@@ -434,10 +432,8 @@ data BindRequest = BindRequest
 instance NFData BindRequest
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 BindRequest where
-  asn1defTag _ = Application 0
-  asn1decodeCompOf = BindRequest <$> asn1decode <*> asn1decode <*> asn1decode
-  asn1encodeCompOf (BindRequest v1 v2 v3) = asn1encodeCompOf (v1,v2,v3)
+instance ASN1 BindRequest where asn1defTag _ = Application 0
+instance ASN1Constructed BindRequest
 #endif
 
 ----------------------------------------------------------------------------
@@ -484,9 +480,8 @@ data SaslCredentials = SaslCredentials
 instance NFData SaslCredentials
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 SaslCredentials where
-  asn1decodeCompOf = SaslCredentials <$> asn1decode <*> asn1decode
-  asn1encodeCompOf (SaslCredentials v1 v2) = asn1encodeCompOf (v1,v2)
+instance ASN1 SaslCredentials
+instance ASN1Constructed SaslCredentials
 #endif
 
 ----------------------------------------------------------------------------
@@ -507,10 +502,8 @@ data BindResponse = BindResponse
 instance NFData BindResponse
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 BindResponse where
-  asn1defTag _ = Application 1
-  asn1decodeCompOf = BindResponse <$> asn1decode <*> asn1decode
-  asn1encodeCompOf (BindResponse v1 v2) = asn1encodeCompOf (v1,v2)
+instance ASN1 BindResponse where asn1defTag _ = Application 1
+instance ASN1Constructed BindResponse
 #endif
 
 ----------------------------------------------------------------------------
@@ -568,18 +561,8 @@ instance NFData SearchRequest
 type AttributeSelection = [LDAPString]
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 SearchRequest where
-  asn1defTag _ = Application 3
-  asn1decodeCompOf = SearchRequest <$> asn1decode
-                                   <*> asn1decode
-                                   <*> asn1decode
-                                   <*> asn1decode
-                                   <*> asn1decode
-                                   <*> asn1decode
-                                   <*> asn1decode
-                                   <*> asn1decode
-  asn1encodeCompOf (SearchRequest v1 v2 v3 v4 v5 v6 v7 v8)
-    = asn1encodeCompOf (v1,v2,v3,v4,v5,v6,v7,v8)
+instance ASN1 SearchRequest where asn1defTag _ = Application 3
+instance ASN1Constructed SearchRequest
 #endif
 
 -- | See 'SearchRequest'  (<https://tools.ietf.org/html/rfc4511#section-4.5.1.2 RFC4511 Section 4.5.1.2>)
@@ -695,9 +678,8 @@ instance NFData AttributeValueAssertion
 type AssertionValue = OCTET_STRING
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 AttributeValueAssertion where
-  asn1decodeCompOf = AttributeValueAssertion <$> asn1decode <*> asn1decode
-  asn1encodeCompOf (AttributeValueAssertion v1 v2) = asn1encodeCompOf (v1,v2)
+instance ASN1 AttributeValueAssertion
+instance ASN1Constructed AttributeValueAssertion
 #endif
 
 {- | Substring 'Filter'  (<https://tools.ietf.org/html/rfc4511#section-4.5.1.7.2 RFC4511 Section 4.5.1.7.2>)
@@ -725,9 +707,8 @@ data SubstringFilter = SubstringFilter
 instance NFData SubstringFilter
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 SubstringFilter where
-  asn1decodeCompOf = SubstringFilter <$> asn1decode <*> asn1decode
-  asn1encodeCompOf (SubstringFilter v1 v2) = asn1encodeCompOf (v1,v2)
+instance ASN1 SubstringFilter
+instance ASN1Constructed SubstringFilter
 #endif
 
 -- | See 'SubstringFilter'
@@ -778,9 +759,8 @@ data MatchingRuleAssertion = MatchingRuleAssertion
 instance NFData MatchingRuleAssertion
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 MatchingRuleAssertion where
-  asn1decodeCompOf = MatchingRuleAssertion <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
-  asn1encodeCompOf (MatchingRuleAssertion v1 v2 v3 v4) = asn1encodeCompOf (v1,v2,v3,v4)
+instance ASN1 MatchingRuleAssertion
+instance ASN1Constructed MatchingRuleAssertion
 #endif
 
 ----------------------------------------------------------------------------
@@ -819,10 +799,8 @@ data SearchResultEntry = SearchResultEntry
 instance NFData SearchResultEntry
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 SearchResultEntry where
-  asn1defTag _ = Application 4
-  asn1decodeCompOf = SearchResultEntry <$> asn1decode <*> asn1decode
-  asn1encodeCompOf (SearchResultEntry v1 v2) = asn1encodeCompOf (v1,v2)
+instance ASN1 SearchResultEntry where asn1defTag _ = Application 4
+instance ASN1Constructed SearchResultEntry
 #endif
 
 {- | See 'SearchResultEntry'
@@ -848,9 +826,8 @@ data PartialAttribute = PartialAttribute
 instance NFData PartialAttribute
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 PartialAttribute where
-  asn1decodeCompOf = PartialAttribute <$> asn1decode <*> asn1decode
-  asn1encodeCompOf (PartialAttribute v1 v2) = asn1encodeCompOf (v1,v2)
+instance ASN1 PartialAttribute
+instance ASN1Constructed PartialAttribute
 #endif
 
 
@@ -869,9 +846,8 @@ data Attribute = Attribute
 instance NFData Attribute
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 Attribute where
-  asn1decodeCompOf = Attribute <$> asn1decode <*> asn1decode
-  asn1encodeCompOf (Attribute v1 v2) = asn1encodeCompOf (v1,v2)
+instance ASN1 Attribute
+instance ASN1Constructed Attribute
 #endif
 
 ----------------------------------------------------------------------------
@@ -966,9 +942,8 @@ type Referral = ('CONTEXTUAL 3 `IMPLICIT` NonEmpty URI)
 type URI = LDAPString
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 LDAPResult where
-  asn1decodeCompOf = LDAPResult <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
-  asn1encodeCompOf (LDAPResult v1 v2 v3 v4) = asn1encodeCompOf (v1,v2,v3,v4)
+instance ASN1 LDAPResult
+instance ASN1Constructed LDAPResult
 #endif
 
 {- | String Type  (<https://tools.ietf.org/html/rfc4511#section-4.1.2 RFC4511 Section 4.1.2>)
@@ -1016,10 +991,8 @@ data ModifyRequest = ModifyRequest
 instance NFData ModifyRequest
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 ModifyRequest where
-  asn1defTag _ = Application 6
-  asn1decodeCompOf = ModifyRequest <$> asn1decode <*> asn1decode
-  asn1encodeCompOf (ModifyRequest v1 v2) = asn1encodeCompOf (v1,v2)
+instance ASN1 ModifyRequest where asn1defTag _ = Application 6
+instance ASN1Constructed ModifyRequest
 #endif
 
 -- | See 'ModifyRequest'
@@ -1031,9 +1004,8 @@ data Change = Change
 instance NFData Change
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 Change where
-  asn1decodeCompOf = Change <$> asn1decode <*> asn1decode
-  asn1encodeCompOf (Change v1 v2) = asn1encodeCompOf (v1,v2)
+instance ASN1 Change
+instance ASN1Constructed Change
 #endif
 
 -- | See 'ModifyRequest' and 'Change'
@@ -1069,10 +1041,8 @@ data AddRequest = AddRequest
 instance NFData AddRequest
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 AddRequest where
-  asn1defTag _ = Application 8
-  asn1decodeCompOf = AddRequest <$> asn1decode <*> asn1decode
-  asn1encodeCompOf (AddRequest v1 v2) = asn1encodeCompOf (v1,v2)
+instance ASN1 AddRequest where asn1defTag _ = Application 8
+instance ASN1Constructed AddRequest
 #endif
 
 {- | Attribute List
@@ -1123,10 +1093,8 @@ data ModifyDNRequest = ModifyDNRequest
 instance NFData ModifyDNRequest
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 ModifyDNRequest where
-  asn1defTag _ = Application 12
-  asn1decodeCompOf = ModifyDNRequest <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
-  asn1encodeCompOf (ModifyDNRequest v1 v2 v3 v4) = asn1encodeCompOf (v1,v2,v3,v4)
+instance ASN1 ModifyDNRequest where asn1defTag _ = Application 12
+instance ASN1Constructed ModifyDNRequest
 #endif
 
 
@@ -1153,10 +1121,8 @@ data CompareRequest = CompareRequest
 instance NFData CompareRequest
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 CompareRequest where
-  asn1defTag _ = Application 14
-  asn1decodeCompOf = CompareRequest <$> asn1decode <*> asn1decode
-  asn1encodeCompOf (CompareRequest v1 v2) = asn1encodeCompOf (v1,v2)
+instance ASN1 CompareRequest where asn1defTag _ = Application 14
+instance ASN1Constructed CompareRequest
 #endif
 
 {- | Compare Response  (<https://tools.ietf.org/html/rfc4511#section-4.10 RFC4511 Section 4.10>)
@@ -1189,10 +1155,8 @@ data ExtendedRequest = ExtendedRequest
 instance NFData ExtendedRequest
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 ExtendedRequest where
-  asn1defTag _ = Application 23
-  asn1decodeCompOf = ExtendedRequest <$> asn1decode <*> asn1decode
-  asn1encodeCompOf (ExtendedRequest v1 v2) = asn1encodeCompOf (v1,v2)
+instance ASN1 ExtendedRequest where asn1defTag _ = Application 23
+instance ASN1Constructed ExtendedRequest
 #endif
 
 {- | Extended Response  (<https://tools.ietf.org/html/rfc4511#section-4.12 RFC4511 Section 4.12>)
@@ -1212,10 +1176,8 @@ data ExtendedResponse = ExtendedResponse
 instance NFData ExtendedResponse
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 ExtendedResponse where
-  asn1defTag _ = Application 24
-  asn1decodeCompOf = ExtendedResponse <$> asn1decode <*> asn1decode <*> asn1decode
-  asn1encodeCompOf (ExtendedResponse v1 v2 v3) = asn1encodeCompOf (v1,v2,v3)
+instance ASN1 ExtendedResponse where asn1defTag _ = Application 24
+instance ASN1Constructed ExtendedResponse
 #endif
 
 {- | Intermediate Response  (<https://tools.ietf.org/html/rfc4511#section-4.13 RFC4511 Section 4.13>)
@@ -1233,8 +1195,6 @@ data IntermediateResponse = IntermediateResponse
 instance NFData IntermediateResponse
 
 #if defined(HS_LDAPv3_ANNOTATED)
-instance ASN1 IntermediateResponse where
-  asn1defTag _ = Application 25
-  asn1decodeCompOf = IntermediateResponse <$> asn1decode <*> asn1decode
-  asn1encodeCompOf (IntermediateResponse v1 v2) = asn1encodeCompOf (v1,v2)
+instance ASN1 IntermediateResponse where asn1defTag _ = Application 25
+instance ASN1Constructed IntermediateResponse
 #endif
