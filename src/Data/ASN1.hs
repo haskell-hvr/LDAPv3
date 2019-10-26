@@ -91,7 +91,7 @@ instance Enumerated Int64 where
 
 instance Enumerated Int where
   toEnumerated = intCastMaybe
-  fromEnumerated = fromIntegral
+  fromEnumerated = intCast
 
 ----------------------------------------------------------------------------
 
@@ -428,7 +428,7 @@ dec'BoundedEnum = do
     ub = fromEnum (maxBound :: enum)
 
 enc'BoundedEnum :: Enum enum => enum -> ASN1Encode Word64
-enc'BoundedEnum v = enc'ENUMERATED (fromIntegral (fromEnum v) :: Int64)
+enc'BoundedEnum v = enc'ENUMERATED (intCast (fromEnum v) :: Int64)
 
 dec'NULL :: ASN1Decode ()
 dec'NULL = asn1DecodeSingleton (Universal 5) $ asPrimitive go

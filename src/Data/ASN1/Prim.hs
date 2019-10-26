@@ -45,10 +45,11 @@ module Data.ASN1.Prim
     ) where
 
 import           Common
+import           Data.Int.Subtypes
 
-import           Data.Binary     as Bin
-import           Data.Binary.Get as Bin
-import           Data.Binary.Put as Bin
+import           Data.Binary       as Bin
+import           Data.Binary.Get   as Bin
+import           Data.Binary.Put   as Bin
 
 data TagPC
   = Primitive
@@ -98,7 +99,7 @@ getTag _ = do
 
   !tn <- case n0 of
           0x1f -> getXTagNum -- long-form tag-number
-          _    -> pure (fromIntegral n0)
+          _    -> pure (intCast n0)
 
   case b0 .&. 0xc0 of
     0x00 -> pure (Universal   tn, pc)
@@ -129,7 +130,7 @@ putTag t pc = do
 getXTagNum :: Get Word64
 getXTagNum = do
     (more0,n0) <- getWord7
-    let n0' = fromIntegral n0
+    let n0' = intCast n0
 
     when (n0' == 0) $
       fail "lower 7 bits of the first subsequent tag-number octet shall not all be zero"
@@ -142,7 +143,7 @@ getXTagNum = do
     go :: Word64 -> Get Word64
     go !acc = do
       (mo,o7) <- getWord7
-      let acc' = (acc `shiftL` 7) .|. fromIntegral o7
+      let acc' = (acc `shiftL` 7) .|. intCast o7
 
       when (acc >= 0x0200000000000000) $
         fail "tag number exceeds 64bit range" -- TODO: investigate whether there's ASN.1 schemas requiring larger tag-numbers
@@ -163,7 +164,7 @@ getLength minimal = do
     xb7 <- getWord7
     case xb7 of
       -- definite short-form
-      (False,n)   -> pure $! Just $! fromIntegral n
+      (False,n)   -> pure $! Just $! intCast n
 
       -- indefinite
       (True,0)    -> pure Nothing
@@ -184,7 +185,7 @@ getLength minimal = do
 
       x <- getWord8
 
-      let acc' = (acc `shiftL` 8) .|. fromIntegral x
+      let acc' = (acc `shiftL` 8) .|. intCast x
       when (minimal && acc == 0 && x == 0) $
         fail "length not encoded minimally"
 
@@ -202,7 +203,6 @@ putLength (Just sz)
       mapM_ putWord8 w8s
       pure (1 + fromIntegral n)
 
-
 asPrimitive :: (Word64 -> Get x) -> TL -> Get x
 asPrimitive _ (_,_,Nothing)         = fail "indefinite length not allowed"
 asPrimitive _ (_,Constructed,_)     = fail "must be primitive"
@@ -214,38 +214,38 @@ getInt24be :: Get Int32
 getInt24be = do
   hi <- getInt8
   lo <- getWord16be
-  pure $! (fromIntegral hi `shiftL` 16) + fromIntegral lo
+  pure $! (intCast hi `shiftL` 16) + intCast lo
 
 getInt40be :: Get Int64
 getInt40be = do
   hi <- getInt8
   lo <- getWord32be
-  pure $! (fromIntegral hi `shiftL` 32) + fromIntegral lo
+  pure $! (intCast hi `shiftL` 32) + intCast lo
 
 getInt48be :: Get Int64
 getInt48be = do
   hi <- getInt16be
   lo <- getWord32be
-  pure $! (fromIntegral hi `shiftL` 32) + fromIntegral lo
+  pure $! (intCast hi `shiftL` 32) + intCast lo
 
 getInt56be :: Get Int64
 getInt56be = do
   hi <- getInt24be
   lo <- getWord32be
-  pure $! (fromIntegral hi `shiftL` 32) + fromIntegral lo
+  pure $! (intCast hi `shiftL` 32) + intCast lo
 
 
 getVarInt64 :: Word64 -> Get Int64
 getVarInt64 = \case
   0 -> fail "invalid zero-sized INTEGER"
-  1 -> fromIntegral <$> getInt8
-  2 -> fromIntegral <$> getInt16be
-  3 -> fromIntegral <$> getInt24be
-  4 -> fromIntegral <$> getInt32be
-  5 ->                  getInt40be
-  6 ->                  getInt48be
-  7 ->                  getInt56be
-  8 ->                  getInt64be
+  1 -> intCast <$> getInt8
+  2 -> intCast <$> getInt16be
+  3 -> intCast <$> getInt24be
+  4 -> intCast <$> getInt32be
+  5 ->             getInt40be
+  6 ->             getInt48be
+  7 ->             getInt56be
+  8 ->             getInt64be
   _ -> fail "INTEGER too large for type"
 
 getVarInteger :: Word64 -> Get Integer
@@ -321,16 +321,16 @@ data TagK = UNIVERSAL   Nat
 class KnownTag (tag :: TagK) where
   tagVal :: Proxy tag -> Tag
 
-instance forall n . (KnownNat n) => KnownTag ('UNIVERSAL n) where
+instance forall n . (KnownNat n, IsBelowMaxBound n (IntBaseType Word64) ~ 'True) => KnownTag ('UNIVERSAL n) where
   tagVal _ = Universal (fromIntegral $ natVal (Proxy :: Proxy n))
 
-instance forall n . (KnownNat n) => KnownTag ('APPLICATION n) where
+instance forall n . (KnownNat n, IsBelowMaxBound n (IntBaseType Word64) ~ 'True) => KnownTag ('APPLICATION n) where
   tagVal _ = Application (fromIntegral $ natVal (Proxy :: Proxy n))
 
-instance forall n . (KnownNat n) => KnownTag ('CONTEXTUAL n) where
+instance forall n . (KnownNat n, IsBelowMaxBound n (IntBaseType Word64) ~ 'True) => KnownTag ('CONTEXTUAL n) where
   tagVal _ = Contextual (fromIntegral $ natVal (Proxy :: Proxy n))
 
-instance forall n . (KnownNat n) => KnownTag ('PRIVATE n) where
+instance forall n . (KnownNat n, IsBelowMaxBound n (IntBaseType Word64) ~ 'True) => KnownTag ('PRIVATE n) where
   tagVal _ = Private (fromIntegral $ natVal (Proxy :: Proxy n))
 
 ----------------------------------------------------------------------------
