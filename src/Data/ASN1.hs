@@ -16,6 +16,7 @@
 
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DefaultSignatures          #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleContexts           #-}
@@ -36,6 +37,7 @@ module Data.ASN1
     , ENUMERATED(..), Enumerated(..)
     , IMPLICIT(..), implicit
     , EXPLICIT(..), explicit
+    , COMPONENTS_OF(..)
 
     , OCTET_STRING
     , NULL
@@ -87,7 +89,18 @@ import qualified Data.Text.Short       as TS
 
 class Enumerated x where
   toEnumerated :: Int64 -> Maybe x
+  default toEnumerated :: (Bounded x, Enum x) => Int64 -> Maybe x
+  toEnumerated i0
+    | Just i <- intCastMaybe i0
+    , i `inside` (lb,ub) = Just (toEnum i)
+    | otherwise          = Nothing
+    where
+      lb = fromEnum (minBound :: x)
+      ub = fromEnum (maxBound :: x)
+
   fromEnumerated :: x -> Int64
+  default fromEnumerated :: Enum x => x -> Int64
+  fromEnumerated = intCast . fromEnum
 
 instance Enumerated Int64 where
   toEnumerated = Just
@@ -546,17 +559,45 @@ newtype IMPLICIT (tag :: TagK) x = IMPLICIT x
 
 instance Newtype (IMPLICIT tag x) x
 
+instance forall tag t . (KnownTag tag, ASN1 t) => ASN1 (IMPLICIT tag t) where
+  asn1defTag _ = tagVal (Proxy :: Proxy tag)
+  asn1decode = IMPLICIT <$> implicit (tagVal (Proxy :: Proxy tag)) asn1decode
+  asn1encode (IMPLICIT v) = retag (tagVal (Proxy :: Proxy tag)) (asn1encode v)
+
 -- | ASN.1 @EXPLICIT@ Annotation
 newtype EXPLICIT (tag :: TagK) x = EXPLICIT x
   deriving (Generic,NFData,IsString,Num,Show,Eq,Ord,Enum)
 
 instance Newtype (EXPLICIT tag x) x
 
+instance forall tag t . (KnownTag tag, ASN1 t) => ASN1 (EXPLICIT tag t) where
+  asn1defTag _ = tagVal (Proxy :: Proxy tag)
+  asn1decode = EXPLICIT <$> explicit (tagVal (Proxy :: Proxy tag)) asn1decode
+  asn1encode (EXPLICIT v) = wraptag (tagVal (Proxy :: Proxy tag)) (asn1encode v)
+
 -- | ASN.1 @ENUMERATED@ Annotation
 newtype ENUMERATED x = ENUMERATED x
   deriving (Generic,NFData,Num,Show,Eq,Ord,Enum)
 
 instance Newtype (ENUMERATED x) x
+
+instance Enumerated t => ASN1 (ENUMERATED t) where
+  asn1defTag _ = Universal 10
+  asn1decode = ENUMERATED <$> dec'ENUMERATED
+  asn1encode (ENUMERATED v) = enc'ENUMERATED v
+
+-- | ASN.1 @COMPONENTS OF@ Annotation
+newtype COMPONENTS_OF x = COMPONENTS_OF x
+  deriving (Generic,NFData,Show,Eq,Ord)
+
+instance Newtype (COMPONENTS_OF x) x
+
+instance ASN1 t => ASN1 (COMPONENTS_OF t) where
+  asn1defTag _ = asn1defTag (Proxy :: Proxy t)
+  asn1decode = asn1decodeCompOf
+  asn1decodeCompOf = COMPONENTS_OF <$> asn1decodeCompOf
+  asn1encode = asn1encodeCompOf
+  asn1encodeCompOf (COMPONENTS_OF v) = asn1encodeCompOf v
 
 ----------------------------------------------------------------------------
 
@@ -673,11 +714,6 @@ instance ASN1 t => ASN1 (Maybe t) where
   asn1encode Nothing  = empty'ASN1Encode
   asn1encode (Just v) = asn1encode v
 
-instance Enumerated t => ASN1 (ENUMERATED t) where
-  asn1defTag _ = Universal 10
-  asn1decode = ENUMERATED <$> dec'ENUMERATED
-  asn1encode (ENUMERATED v) = enc'ENUMERATED v
-
 instance ASN1 t => ASN1 [t] where
   asn1decode = dec'SEQUENCE_OF asn1decode
   asn1encode = enc'SEQUENCE . map asn1encode
@@ -729,16 +765,6 @@ instance (UIntBounds lb ub t, Integral t) => ASN1 (UInt lb ub t) where
   asn1defTag _ = Universal 2
   asn1decode = dec'UInt
   asn1encode = enc'UInt
-
-instance forall tag t . (KnownTag tag, ASN1 t) => ASN1 (IMPLICIT tag t) where
-  asn1defTag _ = tagVal (Proxy :: Proxy tag)
-  asn1decode = IMPLICIT <$> implicit (tagVal (Proxy :: Proxy tag)) asn1decode
-  asn1encode (IMPLICIT v) = retag (tagVal (Proxy :: Proxy tag)) (asn1encode v)
-
-instance forall tag t . (KnownTag tag, ASN1 t) => ASN1 (EXPLICIT tag t) where
-  asn1defTag _ = tagVal (Proxy :: Proxy tag)
-  asn1decode = EXPLICIT <$> explicit (tagVal (Proxy :: Proxy tag)) asn1decode
-  asn1encode (EXPLICIT v) = wraptag (tagVal (Proxy :: Proxy tag)) (asn1encode v)
 
 -- | ASN.1 @NULL@ type
 type NULL = ()
