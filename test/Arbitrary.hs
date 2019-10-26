@@ -72,11 +72,11 @@ instance Arbitrary LDAPMessage where
   arbitrary = LDAPMessage <$> arbitrary <*> arbitrary <*> arbitrary
   shrink = genericShrink
 
-instance Arbitrary BOOLEAN_DEFAULT_FALSE where
-  arbitrary = pure BOOL_TRUE
+instance Arbitrary (BOOLEAN_DEFAULT b) where
+  arbitrary = BOOLEAN <$> arbitrary
 
 instance Arbitrary Control where
-  arbitrary = Control <$> arbitrary <*> oneof [pure Nothing, pure (Just BOOL_TRUE)] <*> arbitrary
+  arbitrary = Control <$> arbitrary <*> arbitrary <*> arbitrary
   shrink = genericShrink
 
 instance Arbitrary LDAPResult where
@@ -85,8 +85,8 @@ instance Arbitrary LDAPResult where
 
 instance Arbitrary ProtocolOp where
   arbitrary = frequency
-    [ (2, ProtocolOp'bindRequest   <$> arbitrary)
-    , (2, ProtocolOp'bindResponse    <$> arbitrary)
+    [ (2, ProtocolOp'bindRequest    <$> arbitrary)
+    , (2, ProtocolOp'bindResponse   <$> arbitrary)
     , (1, ProtocolOp'unbindRequest  <$> arbitrary)
     , (5, ProtocolOp'searchRequest  <$> arbitrary)
     , (1, ProtocolOp'searchResDone  <$> arbitrary)

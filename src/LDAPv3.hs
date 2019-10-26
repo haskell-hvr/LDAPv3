@@ -150,7 +150,7 @@ module LDAPv3
       -- * ASN.1 Helpers
     , NULL
     , OCTET_STRING
-    , BOOLEAN_DEFAULT_FALSE(..)
+    , BOOLEAN_DEFAULT(..)
     , SET(..)
     , SET1(..)
 
@@ -167,8 +167,10 @@ module LDAPv3
     ) where
 
 import           Common
-import           Data.ASN1
-import           Data.ASN1.Prim
+import           Data.ASN1         (ASN1 (..), BOOLEAN_DEFAULT (..), EXPLICIT (..), IMPLICIT (..), NULL,
+                                    OCTET_STRING, SET (..), SET1 (..), dec'BoundedEnum, dec'CHOICE,
+                                    enc'BoundedEnum, enc'SEQUENCE_COMPS, toBinaryGet, toBinaryPut)
+import           Data.ASN1.Prim    (Tag (..), TagK (..))
 import           Data.Int.Subtypes
 import           LDAPv3.ResultCode
 
@@ -266,7 +268,7 @@ data ProtocolOp
 instance NFData ProtocolOp
 
 instance ASN1 ProtocolOp where
-  asn1decode = with'CHOICE
+  asn1decode = dec'CHOICE
     [ ProtocolOp'bindRequest    <$> asn1decode
     , ProtocolOp'bindResponse   <$> asn1decode
     , ProtocolOp'unbindRequest  <$> asn1decode
@@ -332,7 +334,7 @@ type Controls = [Control]
 -}
 data Control = Control
   { _Control'controlType  :: LDAPOID
-  , _Control'criticality  :: Maybe BOOLEAN_DEFAULT_FALSE
+  , _Control'criticality  :: BOOLEAN_DEFAULT 'False
   , _Control'controlValue :: Maybe OCTET_STRING
   } deriving (Generic,Show,Eq)
 
@@ -393,7 +395,7 @@ data AuthenticationChoice
 instance NFData AuthenticationChoice
 
 instance ASN1 AuthenticationChoice where
-  asn1decode = with'CHOICE
+  asn1decode = dec'CHOICE
     [ AuthenticationChoice'simple <$> asn1decode
     , AuthenticationChoice'sasl   <$> asn1decode
     ]
@@ -439,11 +441,7 @@ instance NFData BindResponse
 
 instance ASN1 BindResponse where
   asn1defTag _ = Application 1
-  asn1decodeCompOf = do
-    _BindResponse'LDAPResult      <- asn1decodeCompOf
-    _BindResponse'serverSaslCreds <- asn1decode
-    pure BindResponse{..}
-
+  asn1decodeCompOf = BindResponse <$> asn1decodeCompOf <*> asn1decode
   asn1encodeCompOf (BindResponse{..})
     = enc'SEQUENCE_COMPS [ asn1encodeCompOf _BindResponse'LDAPResult
                          , asn1encode       _BindResponse'serverSaslCreds
@@ -504,29 +502,18 @@ instance NFData SearchRequest
 type AttributeSelection = [LDAPString]
 
 instance ASN1 SearchRequest where
-  asn1decode = implicit (Application 3) $ with'SEQUENCE $ do
-    _SearchRequest'baseObject   <- asn1decode
-    _SearchRequest'scope        <- asn1decode
-    _SearchRequest'derefAliases <- asn1decode
-    _SearchRequest'sizeLimit    <- asn1decode
-    _SearchRequest'timeLimit    <- asn1decode
-    _SearchRequest'typesOnly    <- asn1decode
-    _SearchRequest'filter       <- asn1decode
-    _SearchRequest'attributes   <- asn1decode
+  asn1defTag _ = Application 3
+  asn1decodeCompOf = SearchRequest <$> asn1decode
+                                   <*> asn1decode
+                                   <*> asn1decode
+                                   <*> asn1decode
+                                   <*> asn1decode
+                                   <*> asn1decode
+                                   <*> asn1decode
+                                   <*> asn1decode
 
-    pure SearchRequest{..}
-
-  asn1encode (SearchRequest v1 v2 v3 v4 v5 v6 v7 v8)
-    = retag (Application 3) $
-      enc'SEQUENCE [ asn1encode v1
-                   , asn1encode v2
-                   , asn1encode v3
-                   , asn1encode v4
-                   , asn1encode v5
-                   , asn1encode v6
-                   , asn1encode v7
-                   , asn1encode v8
-                   ]
+  asn1encodeCompOf (SearchRequest v1 v2 v3 v4 v5 v6 v7 v8)
+    = asn1encodeCompOf (v1,v2,v3,v4,v5,v6,v7,v8)
 
 -- | See 'SearchRequest'  (<https://tools.ietf.org/html/rfc4511#section-4.5.1.2 RFC4511 Section 4.5.1.2>)
 data Scope
@@ -589,7 +576,7 @@ data Filter
 instance NFData Filter
 
 instance ASN1 Filter where
-  asn1decode = with'CHOICE
+  asn1decode = dec'CHOICE
     [ Filter'and             <$> asn1decode
     , Filter'or              <$> asn1decode
     , Filter'not             <$> asn1decode
@@ -689,7 +676,7 @@ data Substring
 instance NFData Substring
 
 instance ASN1 Substring where
-  asn1decode = with'CHOICE
+  asn1decode = dec'CHOICE
     [ Substring'initial <$> asn1decode
     , Substring'any     <$> asn1decode
     , Substring'final   <$> asn1decode
@@ -721,7 +708,7 @@ data MatchingRuleAssertion = MatchingRuleAssertion
   { _MatchingRuleAssertion'matchingRule :: Maybe ('CONTEXTUAL 1 `IMPLICIT` MatchingRuleId)
   , _MatchingRuleAssertion'type         :: Maybe ('CONTEXTUAL 2 `IMPLICIT` AttributeDescription)
   , _MatchingRuleAssertion'matchValue   ::       ('CONTEXTUAL 3 `IMPLICIT` AssertionValue)
-  , _MatchingRuleAssertion'dnAttributes :: Maybe ('CONTEXTUAL 4 `IMPLICIT` BOOLEAN_DEFAULT_FALSE)
+  , _MatchingRuleAssertion'dnAttributes ::       ('CONTEXTUAL 4 `IMPLICIT` BOOLEAN_DEFAULT 'False)
   } deriving (Generic,Show,Eq)
 
 instance NFData MatchingRuleAssertion
@@ -739,13 +726,13 @@ instance ASN1 MatchingRuleAssertion where
 
 -}
 
-newtype SearchResultReference = SearchResultReference (NonEmpty URI)
+newtype SearchResultReference = SearchResultReference ('APPLICATION 19 `IMPLICIT` NonEmpty URI)
   deriving (Generic,NFData,Show,Eq)
 
 instance ASN1 SearchResultReference where
   asn1defTag _ = Application 19 -- not used
-  asn1decode = SearchResultReference <$> (Application 19 `implicit` asn1decode)
-  asn1encode (SearchResultReference v) = retag (Application 19) $ asn1encode v
+  asn1decode = SearchResultReference <$> asn1decode
+  asn1encode (SearchResultReference v) = asn1encode v
 
 ----------------------------------------------------------------------------
 
@@ -905,12 +892,7 @@ type Referral = ('CONTEXTUAL 3 `IMPLICIT` NonEmpty URI)
 type URI = LDAPString
 
 instance ASN1 LDAPResult where
-  asn1decodeCompOf = do
-    _LDAPResult'resultCode        <- asn1decode
-    _LDAPResult'matchedDN         <- asn1decode
-    _LDAPResult'diagnosticMessage <- asn1decode
-    _LDAPResult'referral          <- asn1decode
-    pure LDAPResult{..}
+  asn1decodeCompOf = LDAPResult <$> asn1decode <*> asn1decode <*> asn1decode <*> asn1decode
   asn1encodeCompOf (LDAPResult v1 v2 v3 v4) = asn1encodeCompOf (v1,v2,v3,v4)
 
 {- | String Type  (<https://tools.ietf.org/html/rfc4511#section-4.1.2 RFC4511 Section 4.1.2>)
@@ -1147,18 +1129,12 @@ instance NFData ExtendedResponse
 
 instance ASN1 ExtendedResponse where
   asn1defTag _ = Application 24
-  asn1decodeCompOf = do
-    _ExtendedResponse'LDAPResult    <- asn1decodeCompOf
-    _ExtendedResponse'responseName  <- asn1decode
-    _ExtendedResponse'responseValue <- asn1decode
-    pure ExtendedResponse{..}
-
+  asn1decodeCompOf = ExtendedResponse <$> asn1decodeCompOf <*> asn1decode <*> asn1decode
   asn1encodeCompOf (ExtendedResponse{..})
     = enc'SEQUENCE_COMPS [ asn1encodeCompOf _ExtendedResponse'LDAPResult
                          , asn1encode       _ExtendedResponse'responseName
                          , asn1encode       _ExtendedResponse'responseValue
                          ]
-
 
 {- | Intermediate Response  (<https://tools.ietf.org/html/rfc4511#section-4.13 RFC4511 Section 4.13>)
 

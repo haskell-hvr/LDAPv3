@@ -7,6 +7,7 @@ import           Control.Monad       as X
 import           Control.Newtype     as X (Newtype (..))
 import           Data.Bits           as X
 import           Data.ByteString     as X (ByteString)
+import           Data.Foldable       as X (asum)
 import           Data.Int            as X
 import           Data.IntCast        as X
 import           Data.List.NonEmpty  as X (NonEmpty (..))
@@ -27,3 +28,6 @@ inside :: Ord a => a -> (a, a) -> Bool
 x `inside` (lb,ub)
   | lb > ub = error "inside: unsatifiable range"
   | otherwise = lb <= x && x <= ub
+
+impossible :: a
+impossible = error "The impossible just happened!"

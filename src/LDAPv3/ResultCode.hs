@@ -19,7 +19,7 @@
 module LDAPv3.ResultCode (ResultCode(..)) where
 
 import           Common
-import           Data.ASN1
+import           Data.ASN1       (ASN1 (..), ENUMERATED (..), Enumerated (..))
 import qualified Data.Map.Strict as Map
 import           Data.Tuple      (swap)
 
@@ -137,4 +137,4 @@ instance ASN1 ResultCode where
 
 instance Enumerated ResultCode where
   toEnumerated   = Map.lookup `flip` toEnumeratedMap
-  fromEnumerated = Map.findWithDefault undefined `flip` fromEnumeratedMap
+  fromEnumerated = Map.findWithDefault impossible `flip` fromEnumeratedMap

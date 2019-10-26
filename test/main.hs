@@ -274,7 +274,7 @@ unitTests = testGroup "Reference samples"
                                                                         { _MatchingRuleAssertion'matchingRule = Nothing
                                                                         , _MatchingRuleAssertion'type = Just ( IMPLICIT "ou" )
                                                                         , _MatchingRuleAssertion'matchValue = IMPLICIT "ResearchAndDevelopment"
-                                                                        , _MatchingRuleAssertion'dnAttributes = Just ( IMPLICIT BOOL_TRUE )
+                                                                        , _MatchingRuleAssertion'dnAttributes = IMPLICIT (BOOLEAN True)
                                                                         }
                                                                     )
                                                                 ) :|
@@ -284,7 +284,7 @@ unitTests = testGroup "Reference samples"
                                                                             { _MatchingRuleAssertion'matchingRule = Nothing
                                                                             , _MatchingRuleAssertion'type = Just ( IMPLICIT "ou" )
                                                                             , _MatchingRuleAssertion'matchValue = IMPLICIT "HumanResources"
-                                                                            , _MatchingRuleAssertion'dnAttributes = Just ( IMPLICIT BOOL_TRUE )
+                                                                            , _MatchingRuleAssertion'dnAttributes = IMPLICIT (BOOLEAN True)
                                                                             }
                                                                         )
                                                                     )

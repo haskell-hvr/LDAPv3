@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                LDAPv3
-version:             0.0.0.0
+version:             0.1.0.0
 
 synopsis:            Lightweight Directory Access Protocol (LDAP) version 3
 license:             GPL-2.0-or-later
