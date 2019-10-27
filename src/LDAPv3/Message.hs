@@ -49,6 +49,8 @@
 -- * 'Data.Binary.Get.runGetIncremental'
 --
 -- are most useful.
+--
+-- @since 0.1.0
 
 module MODULE_NAME
     ( -- * LDAPv3 Protocol data structures
@@ -655,13 +657,17 @@ instance NFData Substring
 -}
 type MatchingRuleId = LDAPString
 
-{- | See 'SearchRequest' 'Filter'
+{- | /Extensible Match/ 'SearchRequest' 'Filter' (<https://tools.ietf.org/html/rfc4511#section-4.5.1.7.7 RFC4511 Section 4.5.1.7.7>)
 
 > MatchingRuleAssertion ::= SEQUENCE {
 >      matchingRule    [1] MatchingRuleId OPTIONAL,
 >      type            [2] AttributeDescription OPTIONAL,
 >      matchValue      [3] AssertionValue,
 >      dnAttributes    [4] BOOLEAN DEFAULT FALSE }
+
+__NOTE__: The LDAPv3 specification imposes the additional invariant:
+
+/If the @matchingRule@ field is absent, the @type@ field MUST be present/
 
 -}
 data MatchingRuleAssertion = MatchingRuleAssertion
