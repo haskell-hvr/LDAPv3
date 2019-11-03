@@ -120,7 +120,7 @@ r'Filter = r'filter
 -- parseFilter :: Text -> Either ParseError Filter
 -- parseFilter = parse (parsecFilter <* eof) ""
 
--- | Parsec 'Parser' for parsing <https://tools.ietf.org/html/rfc4515 RFC4515> string representations of a LDAPv3 search 'Filter's
+-- | 'Parsec' parser for parsing <https://tools.ietf.org/html/rfc4515 RFC4515> string representations of a LDAPv3 search 'Filter's
 p'Filter :: Stream s Identity Char => Parsec s () Filter
 p'Filter = p'filter
   where

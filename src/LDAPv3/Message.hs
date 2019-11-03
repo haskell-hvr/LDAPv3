@@ -52,6 +52,8 @@
 --
 -- are most useful.
 --
+-- When using a streaming I\/O framework such <http://hackage.haskell.org/package/io-streams io-streams> a simple 'Data.Binary.Binary' adapter such as <http://hackage.haskell.org/package/wire-streams wire-streams> makes it easy to implement a LDAPv3 client.
+--
 -- @since 0.1.0
 
 module MODULE_NAME

@@ -56,18 +56,33 @@ class StringRepr a where
 
   {-# MINIMAL asParsec, (renderShortText | asBuilder) #-}
 
+-- | Convenience 'StringRepr' operation for rendering as 'Text'
+--
+-- @since 0.1.0
 renderText :: StringRepr a => a -> Text
 renderText = TS.toText . renderShortText
 
+-- | Convenience 'StringRepr' operation for rendering as plain-old 'String'
+--
+-- @since 0.1.0
 renderString :: StringRepr a => a -> String
 renderString = TS.toString . renderShortText
 
+-- | Convenience 'StringRepr' operation for parsing from 'Text'
+--
+-- @since 0.1.0
 parseText :: StringRepr a => Text -> Maybe a
 parseText = either (const Nothing) Just . parse (asParsec <* eof) ""
 
+-- | Convenience 'StringRepr' operation for parsing from 'ShortText'
+--
+-- @since 0.1.0
 parseShortText :: StringRepr a => ShortText -> Maybe a
 parseShortText = either (const Nothing) Just . parse (asParsec <* eof) "" . TS.toString
 
+-- | Convenience 'StringRepr' operation for parsing from plain-old 'String'
+--
+-- @since 0.1.0
 parseString :: StringRepr a => String -> Maybe a
 parseString = either (const Nothing) Just . parse (asParsec <* eof) ""
 
