@@ -40,6 +40,8 @@ module Data.ASN1
     , toBinaryPut
     , toBinaryGet
 
+    , asn1decodeParsec
+
       -- Generics support
 
     , GASN1EncodeCompOf, gasn1encodeCompOf
@@ -68,6 +70,8 @@ module Data.ASN1
       -- term-level combinators
 
     , asn1fail
+    , transformVia
+
     , retag, wraptag
 
     , dec'SEQUENCE
@@ -101,7 +105,10 @@ import qualified Data.Map.Strict       as Map
 import           Data.Set              (Set)
 import qualified Data.Set              as Set
 import           Data.String           (IsString)
+import qualified Data.Text.Encoding    as T
 import qualified Data.Text.Short       as TS
+import qualified Text.Parsec           as P
+import qualified Text.Parsec.Text      as P
 
 ----------------------------------------------------------------------------
 
@@ -372,6 +379,13 @@ transformVia old f
               UnexpectedEOF -> pure UnexpectedEOF
         }
 
+asn1decodeParsec :: String -> P.Parser t -> ASN1Decode t
+asn1decodeParsec l p = asn1decode `transformVia` f
+  where
+    f t = case P.parse (p <* P.eof) "" t of
+            Left _  -> Left ("invalid " ++ l)
+            Right v -> Right v
+
 explicit :: Tag -> ASN1Decode x -> ASN1Decode x
 explicit t body = dec'Constructed (show t ++ " EXPLICIT") t body
 
@@ -631,6 +645,12 @@ instance (Generic t, GASN1EncodeChoice (Rep t), GASN1DecodeChoice (Rep t)) => AS
   asn1decode = CHOICE <$> gasn1decodeChoice
   asn1encode (CHOICE v) = gasn1encodeChoice v
 
+
+instance (ASN1 l, ASN1 r) => ASN1 (Either l r) where
+  asn1defTag _ = undefined
+  asn1decode = (Left <$> asn1decode) <|> (Right <$> asn1decode)
+  asn1encode = either asn1encode asn1encode
+
 ----------------------------------------------------------------------------
 
 class ASN1 t where
@@ -753,6 +773,12 @@ instance ASN1 ShortText where
                (maybe (Left "OCTECT STRING contained invalid UTF-8") Right . TS.fromByteString)
   asn1encode = asn1encode . TS.toShortByteString
 
+instance ASN1 Text where
+  asn1defTag _ = Universal 4
+  asn1decode = dec'OCTETSTRING `transformVia`
+               (either (\_ -> Left "OCTECT STRING contained invalid UTF-8") Right . T.decodeUtf8')
+  asn1encode = asn1encode . T.encodeUtf8
+
 type BOOLEAN = Bool
 
 instance ASN1 Bool where
@@ -768,6 +794,7 @@ instance ASN1 t => ASN1 (Maybe t) where
 
   asn1encode Nothing  = empty'ASN1Encode
   asn1encode (Just v) = asn1encode v
+
 
 instance ASN1 t => ASN1 [t] where
   asn1decode = dec'SEQUENCE_OF asn1decode

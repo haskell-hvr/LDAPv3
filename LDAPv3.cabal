@@ -16,7 +16,7 @@ description:
   .
   Serializing and deserializing to and from the wire <https://en.wikipedia.org/wiki/ASN.1 ASN.1> encoding for the purpose of implementing network clients and servers is supported via 'Binary' instances (see <//hackage.haskell.org/package/binary 'binary' package>).
   .
-  Moreover, this library also implements /String Representation of Search Filters/ as per <https://tools.ietf.org/html/rfc4511 RFC4511> (see "LDAPv3.SearchFilter")
+  Moreover, this library also implements /String Representation of Search Filters/ as per <https://tools.ietf.org/html/rfc4515 RFC4515> (see "LDAPv3.StringRepr")
 
 source-repository head
   type:     git
@@ -38,6 +38,7 @@ common defaults
     KindSignatures
     LambdaCase
     MultiParamTypeClasses
+    OverloadedStrings
     RecordWildCards
     ScopedTypeVariables
     StandaloneDeriving
@@ -72,12 +73,14 @@ library
   hs-source-dirs: src
   exposed-modules:
       LDAPv3.Message
-      LDAPv3.SearchFilter
+      LDAPv3.StringRepr
   other-modules:
       Common
       Data.Int.Subtypes
       Data.ASN1
       Data.ASN1.Prim
+      LDAPv3.AttributeDescription
+      LDAPv3.SearchFilter
       LDAPv3.ResultCode
       LDAPv3.Message.Annotated
 

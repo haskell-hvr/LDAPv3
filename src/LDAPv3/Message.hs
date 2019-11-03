@@ -17,9 +17,11 @@
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE Trustworthy                #-}
@@ -70,11 +72,14 @@ module MODULE_NAME
       -- 4.1.2.  String Types
     , LDAPString
     , LDAPOID
+    , OID(..)
       -- 4.1.3.  Distinguished Name and Relative Distinguished Name
     , LDAPDN
     , RelativeLDAPDN
       -- 4.1.4.  Attribute Descriptions
-    , AttributeDescription
+    , AttributeDescription(..)
+    , KeyString
+    , Option
       -- 4.1.5.  Attribute Value
     , AttributeValue
       -- 4.1.6.  Attribute Value Assertion
@@ -84,7 +89,7 @@ module MODULE_NAME
     , PartialAttribute(..)
     , Attribute(..)
       -- 4.1.8.  Matching Rule Identifier
-    , MatchingRuleId
+    , MatchingRuleId(..)
       -- 4.1.9.  Result Message
     , LDAPResult(..)
     , ResultCode(..)
@@ -191,22 +196,24 @@ module MODULE_NAME
     , toUInt
     ) where
 
-import           Common
-import           Data.ASN1.Prim           (TagK (..))
+import           Common                      hiding (Option)
+import           Data.ASN1.Prim              (TagK (..))
 import           Data.Int.Subtypes
+import           LDAPv3.AttributeDescription
 import           LDAPv3.ResultCode
 
-import qualified Data.Binary              as Bin
+import qualified Data.Binary                 as Bin
 
-import           Data.ASN1                (Enumerated, NULL, OCTET_STRING, SET (..), SET1 (..))
+import           Data.ASN1                   (Enumerated, NULL, OCTET_STRING, SET (..), SET1 (..))
 #if defined(HS_LDAPv3_ANNOTATED)
-import           Data.ASN1                (ASN1 (..), ASN1Constructed, BOOLEAN_DEFAULT (..), CHOICE (..),
-                                           COMPONENTS_OF (..), ENUMERATED (..), EXPLICIT (..), IMPLICIT (..),
-                                           gasn1decodeChoice, gasn1encodeChoice, toBinaryGet, toBinaryPut)
-import           Data.ASN1.Prim           (Tag (..))
+import           Data.ASN1                   (ASN1 (..), ASN1Constructed, BOOLEAN_DEFAULT (..), CHOICE (..),
+                                              COMPONENTS_OF (..), ENUMERATED (..), EXPLICIT (..),
+                                              IMPLICIT (..), gasn1decodeChoice, gasn1encodeChoice,
+                                              toBinaryGet, toBinaryPut)
+import           Data.ASN1.Prim              (Tag (..))
 #else /* defined(HS_LDAPv3_ANNOTATED) */
-import qualified LDAPv3.Message.Annotated as Annotated (LDAPMessage)
-import           Unsafe.Coerce            (unsafeCoerce)
+import qualified LDAPv3.Message.Annotated    as Annotated (LDAPMessage)
+import           Unsafe.Coerce               (unsafeCoerce)
 
 -- | ASN.1 @IMPLICIT@ Annotation
 type IMPLICIT (tag :: TagK) x = x
@@ -291,6 +298,8 @@ instance ASN1Constructed LDAPMessage
 newtype MessageID = MessageID (UInt 0 MaxInt Int32)
                   deriving (Generic,NFData,Ord,Bounded,Show,Eq)
 
+instance Newtype MessageID (UInt 0 MaxInt Int32)
+
 #if defined(HS_LDAPv3_ANNOTATED)
 deriving instance ASN1 MessageID
 #endif
@@ -366,7 +375,7 @@ instance ASN1Constructed Control
 >                          -- [RFC4512]
 
 -}
-type LDAPOID = OCTET_STRING
+type LDAPOID = OID
 
 ----------------------------------------------------------------------------
 
@@ -552,6 +561,8 @@ instance Enumerated DerefAliases
 >      extensibleMatch [9] MatchingRuleAssertion,
 >      ...  }
 
+See also "LDAPv3.StringRepr" for converting 'Filter' to and from the /String Representation of Search Filters/ (<https://tools.ietf.org/html/rfc4515 RFC4515>).
+
 -}
 data Filter
   = Filter'and             ('CONTEXTUAL 0 `IMPLICIT` SET1 Filter)
@@ -574,14 +585,34 @@ instance ASN1 Filter where
   asn1encode = gasn1encodeChoice
 #endif
 
-{- | Attribute Descriptions  (<https://tools.ietf.org/html/rfc4511#section-4.1.4 RFC4511 Section 4.1.4>)
+{-  Attribute Descriptions  (<https://tools.ietf.org/html/rfc4511#section-4.1.4 RFC4511 Section 4.1.4>)
 
 > AttributeDescription ::= LDAPString
 >                         -- Constrained to <attributedescription>
 >                         -- [RFC4512]
 
+@attributedescription@'s syntax is defined in ABNF (<https://tools.ietf.org/search/rfc4234 RFC4234>) notation as
+
+> attributedescription = attributetype options
+> attributetype = oid
+> options = *( SEMI option )
+> option = 1*keychar
+> oid = descr / numericoid
+> descr = keystring
+> numericoid = number 1*( DOT number )
+> keystring = leadkeychar *keychar
+> leadkeychar = ALPHA
+> ALPHA   = %x41-5A / %x61-7A   ; "A"-"Z" / "a"-"z"
+> keychar = ALPHA / DIGIT / HYPHEN
+> number  = DIGIT / ( LDIGIT 1*DIGIT )
+> DIGIT   = %x30 / LDIGIT       ; "0"-"9"
+> LDIGIT  = %x31-39             ; "1"-"9"
+> HYPHEN  = %x2D                ; hyphen ("-")
+
+See also <https://tools.ietf.org/search/rfc4512#section-2.5 RFC4512 Section 2.5> for the definition of @attributedescription@.
+
 -}
-type AttributeDescription = LDAPString
+-- type AttributeDescription = LDAPString
 
 {- | Attribute Value  (<https://tools.ietf.org/html/rfc4511#section-4.1.5 RFC4511 Section 4.1.5>)
 
@@ -649,13 +680,6 @@ data Substring
   deriving (Generic,Show,Eq)
 
 instance NFData Substring
-
-{- | Matching Rule Identifier  (<https://tools.ietf.org/html/rfc4511#section-4.1.8 RFC4511 Section 4.1.8>)
-
-> MatchingRuleId ::= LDAPString
-
--}
-type MatchingRuleId = LDAPString
 
 {- | /Extensible Match/ 'SearchRequest' 'Filter' (<https://tools.ietf.org/html/rfc4511#section-4.5.1.7.7 RFC4511 Section 4.5.1.7.7>)
 

@@ -21,8 +21,10 @@
 module Main (main) where
 
 import           LDAPv3.Message
+import           LDAPv3.StringRepr
 
 import qualified Codec.Base16          as B16
+import           Control.DeepSeq
 import           Data.Binary           as Bin
 import qualified Data.ByteString.Lazy  as BSL
 import           Data.Char             (isSpace)
@@ -39,17 +41,28 @@ import           Arbitrary             ()
 main :: IO ()
 main = defaultMain tests
 
-tests, qcProps, unitTests :: TestTree
-tests = testGroup "Tests" [unitTests, qcProps]
+tests, qcPropsRFC4511, qcPropsRFC4515, unitTestsRFC4511, unitTestsRFC4515 :: TestTree
 
-----------------------------------------------------------------------------
+tests = testGroup "Tests" [unitTestsRFC4515, unitTestsRFC4511, qcPropsRFC4515, qcPropsRFC4511]
 
-qcProps = testGroup "Properties"
+----------------------------------------------------------------------------------------------------
+
+qcPropsRFC4515 = testGroup "Properties (RFC4515)"
+  [ QC.testProperty "parse/render Filter roundtrip" $
+      \f -> parseShortText (renderShortText (f :: Filter)) === Just f
+  ]
+
+----------------------------------------------------------------------------------------------------
+
+qcPropsRFC4511 = testGroup "Properties (RFC4511)"
   [ QC.testProperty "MessageID round-trip" $
       \msgid -> let msg = LDAPMessage msgid
                                       (ProtocolOp'bindRequest (BindRequest 3 "" (AuthenticationChoice'simple "")))
                                       Nothing
                 in decode (encode msg) == msg
+
+  , QC.testProperty "encode" $
+      \(msg :: LDAPMessage) -> rnf (encode msg) === ()
 
   , QC.testProperty "decode . encode == id @LDAPMessage" $
       \(msg :: LDAPMessage) -> (decode . encode) msg === msg
@@ -64,28 +77,24 @@ qcProps = testGroup "Properties"
       \noise -> isLeft (decodeOne noise)
 
   ]
-
-decodeOne :: BSL.ByteString -> Either BSL.ByteString (LDAPMessage,BSL.ByteString)
-decodeOne raw = case decodeOrFail raw of
-  Left (rest,_,_)  -> Left rest
-  Right (rest,_,v) -> Right (v,rest)
-
-decodeMulti :: BSL.ByteString -> ([LDAPMessage],BSL.ByteString)
-decodeMulti = go []
   where
-    go acc raw
-      | BSL.null raw = (reverse acc, raw)
-      | otherwise = case decodeOne raw of
-          Left rest      -> (reverse acc, rest)
-          Right (v,rest) -> go (v:acc) rest
+    decodeOne :: BSL.ByteString -> Either BSL.ByteString (LDAPMessage,BSL.ByteString)
+    decodeOne raw = case decodeOrFail raw of
+      Left (rest,_,_)  -> Left rest
+      Right (rest,_,v) -> Right (v,rest)
 
-----------------------------------------------------------------------------
+    decodeMulti :: BSL.ByteString -> ([LDAPMessage],BSL.ByteString)
+    decodeMulti = go []
+      where
+        go acc raw
+          | BSL.null raw = (reverse acc, raw)
+          | otherwise = case decodeOne raw of
+              Left rest      -> (reverse acc, rest)
+              Right (v,rest) -> go (v:acc) rest
 
--- local helper
-hex :: TS.ShortText -> BSL.ByteString
-hex = either error id . B16.decode . TS.toShortByteString . TS.filter (not . isSpace)
+----------------------------------------------------------------------------------------------------
 
-unitTests = testGroup "Reference samples"
+unitTestsRFC4511 = testGroup "Golden tests (RFC4511)"
   [ testGroup tlabel
     [ testCase "encode" $ Bin.encode ref_msg @?= ref_bin
     , testCase "decode" $ Bin.decode ref_bin @?= ref_msg
@@ -431,3 +440,246 @@ unitTests = testGroup "Reference samples"
     ]
 
   ]
+
+----------------------------------------------------------------------------------------------------
+
+unitTestsRFC4515 = testGroup "Golden tests (RFC4515)"
+  [ testGroup tlabel $
+    [ testCase "parseFilter"  $ parseShortText ref_string  @?= Just ref_filter
+    , testCase "renderFilter" $ renderShortText ref_filter @?= ref_string2
+    ] ++
+    [ testCase "parseFilter #2"  $ parseShortText ref_string2 @?= Just ref_filter
+    | ref_string2 /= ref_string
+    ]
+
+  | (tlabel,(ref_string,ref_string2),ref_filter) <-
+    [
+        ( "RFC4515 example #1"
+        , dup"(cn=Babs Jensen)"
+        , Filter'equalityMatch
+            ( AttributeValueAssertion
+                { _AttributeValueAssertion'attributeDesc = "cn"
+                , _AttributeValueAssertion'assertionValue = "Babs Jensen"
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #2"
+        , dup"(!(cn=Tim Howes))"
+        , Filter'not
+            ( Filter'equalityMatch
+                ( AttributeValueAssertion
+                    { _AttributeValueAssertion'attributeDesc = "cn"
+                    , _AttributeValueAssertion'assertionValue = "Tim Howes"
+                    }
+                )
+            )
+        )
+    ,
+        ( "RFC4515 example #3"
+        , dup"(&(objectClass=Person)(|(sn=Jensen)(cn=Babs J*)))"
+        , Filter'and
+            ( SET1
+                ( Filter'equalityMatch
+                    ( AttributeValueAssertion
+                        { _AttributeValueAssertion'attributeDesc = "objectClass"
+                        , _AttributeValueAssertion'assertionValue = "Person"
+                        }
+                    ) :|
+                    [ Filter'or
+                        ( SET1
+                            ( Filter'equalityMatch
+                                ( AttributeValueAssertion
+                                    { _AttributeValueAssertion'attributeDesc = "sn"
+                                    , _AttributeValueAssertion'assertionValue = "Jensen"
+                                    }
+                                ) :|
+                                [ Filter'substrings
+                                    ( SubstringFilter
+                                        { _SubstringFilter'type = "cn"
+                                        , _SubstringFilter'substrings = Substring'initial "Babs J" :| []
+                                        }
+                                    )
+                                ]
+                            )
+                        )
+                    ]
+                )
+            )
+        )
+    ,
+        ( "RFC4515 example #4"
+        , dup"(o=univ*of*mich*)"
+        , Filter'substrings
+            ( SubstringFilter
+                { _SubstringFilter'type = "o"
+                , _SubstringFilter'substrings = Substring'initial "univ" :|
+                    [ Substring'any "of"
+                    , Substring'any "mich"
+                    ]
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #5"
+        , dup"(seeAlso=)"
+        , Filter'equalityMatch
+            ( AttributeValueAssertion
+                { _AttributeValueAssertion'attributeDesc = "seeAlso"
+                , _AttributeValueAssertion'assertionValue = ""
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #6"
+        , dup"(cn:caseExactMatch:=Fred Flintstone)"
+        , Filter'extensibleMatch
+            ( MatchingRuleAssertion
+                { _MatchingRuleAssertion'matchingRule = Just "caseExactMatch"
+                , _MatchingRuleAssertion'type = Just "cn"
+                , _MatchingRuleAssertion'matchValue = "Fred Flintstone"
+                , _MatchingRuleAssertion'dnAttributes = False
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #7"
+        , dup"(cn:=Betty Rubble)"
+        , Filter'extensibleMatch
+            ( MatchingRuleAssertion
+                { _MatchingRuleAssertion'matchingRule = Nothing
+                , _MatchingRuleAssertion'type = Just "cn"
+                , _MatchingRuleAssertion'matchValue = "Betty Rubble"
+                , _MatchingRuleAssertion'dnAttributes = False
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #8"
+        , dup"(sn:dn:2.4.6.8.10:=Barney Rubble)"
+        , Filter'extensibleMatch
+            ( MatchingRuleAssertion
+                { _MatchingRuleAssertion'matchingRule = Just "2.4.6.8.10"
+                , _MatchingRuleAssertion'type = Just "sn"
+                , _MatchingRuleAssertion'matchValue = "Barney Rubble"
+                , _MatchingRuleAssertion'dnAttributes = True
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #9"
+        , dup"(o:dn:=Ace Industry)"
+        , Filter'extensibleMatch
+            ( MatchingRuleAssertion
+                { _MatchingRuleAssertion'matchingRule = Nothing
+                , _MatchingRuleAssertion'type = Just "o"
+                , _MatchingRuleAssertion'matchValue = "Ace Industry"
+                , _MatchingRuleAssertion'dnAttributes = True
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #10"
+        , dup"(:1.2.3:=Wilma Flintstone)"
+        , Filter'extensibleMatch
+            ( MatchingRuleAssertion
+                { _MatchingRuleAssertion'matchingRule = Just "1.2.3"
+                , _MatchingRuleAssertion'type = Nothing
+                , _MatchingRuleAssertion'matchValue = "Wilma Flintstone"
+                , _MatchingRuleAssertion'dnAttributes = False
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #11"
+        , ( "(:DN:2.4.6.8.10:=Dino)"
+          , "(:dn:2.4.6.8.10:=Dino)"
+          )
+        , Filter'extensibleMatch
+            ( MatchingRuleAssertion
+                { _MatchingRuleAssertion'matchingRule = Just "2.4.6.8.10"
+                , _MatchingRuleAssertion'type = Nothing
+                , _MatchingRuleAssertion'matchValue = "Dino"
+                , _MatchingRuleAssertion'dnAttributes = True
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #12"
+        , dup"(o=Parens R Us \\28for all your parenthetical needs\\29)"
+        , Filter'equalityMatch
+            ( AttributeValueAssertion
+                { _AttributeValueAssertion'attributeDesc = "o"
+                , _AttributeValueAssertion'assertionValue = "Parens R Us (for all your parenthetical needs)"
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #13"
+        , ( "(cn=*\\2A*)"
+          , "(cn=*\\2a*)"
+          )
+        , Filter'substrings
+            ( SubstringFilter
+                { _SubstringFilter'type = "cn"
+                , _SubstringFilter'substrings = Substring'any "*" :| []
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #14"
+        , dup"(filename=C:\\5cMyFile)"
+        , Filter'equalityMatch
+            ( AttributeValueAssertion
+                { _AttributeValueAssertion'attributeDesc = "filename"
+                , _AttributeValueAssertion'assertionValue = "C:\\MyFile"
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #15"
+        , ( "(bin=\\00\\00\\00\\04)"
+          , "(bin=\\00\\00\\00\x04)"
+          )
+        , Filter'equalityMatch
+            ( AttributeValueAssertion
+                { _AttributeValueAssertion'attributeDesc = "bin"
+                , _AttributeValueAssertion'assertionValue = "\x0\x0\x0\x4"
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #16"
+        , ( "(sn=Lu\\c4\\8di\\c4\\87)"
+          , "(sn=Lučić)"
+          )
+        , Filter'equalityMatch
+            ( AttributeValueAssertion
+                { _AttributeValueAssertion'attributeDesc = "sn"
+                , _AttributeValueAssertion'assertionValue = "LuÄ\x8diÄ\x87" -- Lučić
+                }
+            )
+        )
+    ,
+        ( "RFC4515 example #17"
+        , ( "(1.3.6.1.4.1.1466.0=\\04\\02\\48\\69)"
+          , "(1.3.6.1.4.1.1466.0=\x04\x02Hi)"
+          )
+        , Filter'equalityMatch
+            ( AttributeValueAssertion
+                { _AttributeValueAssertion'attributeDesc = "1.3.6.1.4.1.1466.0"
+                , _AttributeValueAssertion'assertionValue = "\x04\x02\x48\x69" -- ASN.1 encoding
+                }
+            )
+        )
+    ]
+  ]
+
+----------------------------------------------------------------------------------------------------
+-- local helper
+
+dup :: x -> (x,x)
+dup x = (x,x)
+
+hex :: TS.ShortText -> BSL.ByteString
+hex = either error id . B16.decode . TS.toShortByteString . TS.filter (not . isSpace)

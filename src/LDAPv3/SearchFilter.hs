@@ -14,6 +14,7 @@
 --  along with this program (see `LICENSE`).  If not, see
 --  <https://www.gnu.org/licenses/old-licenses/gpl-2.0.html>.
 
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -22,55 +23,53 @@
 --
 -- @since 0.1.0
 module LDAPv3.SearchFilter
-  ( renderFilter
-  , parsecFilter
-  , parseFilter
+  ( r'Filter
+  , p'Filter
   ) where
 
-import           Common                     hiding (many, option, some, (<|>))
+import           Common                      hiding (many, option, some, (<|>))
+import           LDAPv3.AttributeDescription
 import           LDAPv3.Message
 
-import qualified Data.ByteString            as BS
-import           Data.Char                  (isDigit)
-import           Data.List
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import qualified Data.Text.Encoding         as T
-import qualified Data.Text.Lazy             as T (toStrict)
-import           Data.Text.Lazy.Builder     as B
-import           Data.Text.Lazy.Builder.Int (hexadecimal)
-import qualified Data.Text.Short            as TS
+import qualified Data.ByteString             as BS
+import qualified Data.List.NonEmpty          as NE
+import qualified Data.Text                   as T
+import qualified Data.Text.Encoding          as T
+import           Data.Text.Lazy.Builder      as B
+import           Data.Text.Lazy.Builder.Int  (hexadecimal)
 
-import           Text.Parsec                as P
-import           Text.Parsec.Text
+import           Text.Parsec                 as P
 
--- | Render LDAPv3 search 'Filter's into <https://tools.ietf.org/html/rfc4515 RFC4515> text representation
-renderFilter :: Filter -> Text
-renderFilter = T.toStrict . B.toLazyText . r'Filter
+-- -- | Render LDAPv3 search 'Filter's into <https://tools.ietf.org/html/rfc4515 RFC4515> text representation
+-- renderFilter :: Filter -> Text
+-- renderFilter = T.toStrict . B.toLazyText . r'Filter
+
+r'Filter :: Filter -> Builder
+r'Filter = r'filter
   where
-    r'Filter :: Filter -> Builder
-    r'Filter f0 = singleton '(' <> f' <> singleton ')'
+    r'filter :: Filter -> Builder
+    r'filter f0 = singleton '(' <> f' <> singleton ')'
       where
         f' = case f0 of
-               Filter'and (SET1 fs)       -> singleton '&' <> sconcat (fmap r'Filter fs)
-               Filter'or  (SET1 fs)       -> singleton '|' <> sconcat (fmap r'Filter fs)
-               Filter'not f               -> singleton '!' <> r'Filter f
+               Filter'and (SET1 fs)       -> singleton '&' <> sconcat (fmap r'filter fs)
+               Filter'or  (SET1 fs)       -> singleton '|' <> sconcat (fmap r'filter fs)
+               Filter'not f               -> singleton '!' <> r'filter f
                Filter'equalityMatch  ava  -> r'simple (singleton '=') ava
                Filter'greaterOrEqual ava  -> r'simple ">=" ava
                Filter'lessOrEqual    ava  -> r'simple "<=" ava
                Filter'approxMatch    ava  -> r'simple "~=" ava
-               Filter'present attr        -> b'ShortText attr <> "=*"
+               Filter'present attr        -> r'AttributeDescription attr <> "=*"
                Filter'substrings sub      -> r'substring sub
                Filter'extensibleMatch ext -> r'extensible ext
 
 
     r'simple :: Builder -> AttributeValueAssertion -> Builder
     r'simple filtertype (AttributeValueAssertion attr assertionvalue)
-      = b'ShortText attr <> filtertype <> r'assertionvalue assertionvalue
+      = r'AttributeDescription attr <> filtertype <> r'assertionvalue assertionvalue
 
     r'substring :: SubstringFilter -> Builder
     r'substring (SubstringFilter attr (s1:|ss))
-      = b'ShortText attr <> singleton '=' <>
+      = r'AttributeDescription attr <> singleton '=' <>
         (case s1 of
             Substring'initial x -> r'assertionvalue x <> go ss
             _                   -> go (s1:ss)
@@ -81,9 +80,6 @@ renderFilter = T.toStrict . B.toLazyText . r'Filter
         go [Substring'final x]         = singleton '*' <> r'assertionvalue x
         go (Substring'any x : xs)      = singleton '*' <> r'assertionvalue x <> go xs
         go []                          = singleton '*'
-
-    b'ShortText :: ShortText -> Builder
-    b'ShortText = fromText . TS.toText
 
     r'assertionvalue :: AssertionValue -> Builder
     r'assertionvalue bs
@@ -113,19 +109,20 @@ renderFilter = T.toStrict . B.toLazyText . r'Filter
     r'extensible :: MatchingRuleAssertion -> Builder
     r'extensible (MatchingRuleAssertion matchingrule attr assertionvalue dnattrs)
       | isNothing matchingrule, isNothing attr = "renderFilter: invalid MatchingRuleAssertion (matchingRule field absent and type field not present)"
-      | otherwise = mconcat [ maybe mempty b'ShortText attr
+      | otherwise = mconcat [ maybe mempty r'AttributeDescription attr
                             , if dnattrs then ":dn" else mempty
-                            , maybe mempty (\oid -> singleton ':' <> b'ShortText oid) matchingrule
+                            , maybe mempty (\mrid -> singleton ':' <> r'MatchingRuleId mrid) matchingrule
                             , ":=", r'assertionvalue assertionvalue
                             ]
 
--- | Parse <https://tools.ietf.org/html/rfc4515 RFC4515> string representation of a LDAPv3 search 'Filter's
-parseFilter :: Text -> Either ParseError Filter
-parseFilter = parse (parsecFilter <* eof) ""
+-- TODO
+-- -- | Parse <https://tools.ietf.org/html/rfc4515 RFC4515> string representation of a LDAPv3 search 'Filter's
+-- parseFilter :: Text -> Either ParseError Filter
+-- parseFilter = parse (parsecFilter <* eof) ""
 
 -- | Parsec 'Parser' for parsing <https://tools.ietf.org/html/rfc4515 RFC4515> string representations of a LDAPv3 search 'Filter's
-parsecFilter :: Parser Filter
-parsecFilter = p'filter
+p'Filter :: Stream s Identity Char => Parsec s () Filter
+p'Filter = p'filter
   where
     -- filter         = LPAREN filtercomp RPAREN
     p'filter = char '(' *> p'filtercomp <* char ')'
@@ -162,7 +159,7 @@ parsecFilter = p'filter
     p'item = p'itemWithAttr <|> p'extensible Nothing
 
     p'itemWithAttr = do
-      attr <- p'attributedescription <?> "attributedescription"
+      attr <- p'AttributeDescription <?> "attributedescription"
 
       choice [ Filter'approxMatch    . AttributeValueAssertion attr <$> (string "~=" *> p'assertionvalue)
              , Filter'greaterOrEqual . AttributeValueAssertion attr <$> (string ">=" *> p'assertionvalue)
@@ -188,6 +185,12 @@ parsecFilter = p'filter
       _MatchingRuleAssertion'matchValue <- p'assertionvalue
       pure (Filter'extensibleMatch (MatchingRuleAssertion {..}))
 
+    -- dnattrs        = COLON "dn"
+    p'dnattrs = try (char ':' *> (char 'd' <|> char 'D') *> (char 'n' <|> char 'N') *> pure ())
+
+    -- matchingrule   = COLON oid
+    p'matchingrule = char ':' *> p'MatchingRuleId
+
     -- [assertionvalue] *(assertionvalue ASTERISK) [assertionvalue]
     p'substringOrPresent attr = try $ do
       let bs2lst x = if BS.null x then [] else [x]
@@ -203,48 +206,6 @@ parsecFilter = p'filter
                 []   -> Filter'present attr
                 x:xs -> Filter'substrings (SubstringFilter attr (x:|xs))
 
-    -- dnattrs        = COLON "dn"
-    p'dnattrs = void (string ":dn")
-
-    -- matchingrule   = COLON oid
-    p'matchingrule = char ':' *> (TS.fromString <$> p'oid)
-
-    -- attributedescription = attributetype options
-    -- attributetype = oid
-    p'attributedescription :: Parser AttributeDescription
-    p'attributedescription = TS.fromString <$> ((++) <$> p'oid <*> p'options)
-
-    -- options = *( SEMI option )
-    p'options = concat <$> many ((:) <$> char ';' <*> p'option)
-    -- option = 1*keychar
-    p'option = many1 p'keychar
-
-    -- oid = descr / numericoid
-    -- descr = keystring
-    p'oid = (p'keystring <|> p'numericoid) <?> "oid"
-
-    -- numericoid = number 1*( DOT number )
-    p'numericoid = intercalate "." <$>  (p'number `sepBy1` char '.')
-
-    -- keystring = leadkeychar *keychar
-    -- leadkeychar = ALPHA
-    p'keystring = (:) <$> p'ALPHA <*> many p'keychar
-
-    -- ALPHA   = %x41-5A / %x61-7A   ; "A"-"Z" / "a"-"z"
-    p'ALPHA = satisfy (\c -> (c `inside` ('A','Z')) || (c `inside` ('a','z')))
-
-    -- keychar = ALPHA / DIGIT / HYPHEN
-    p'keychar = satisfy (\c -> (c `inside` ('A','Z')) || (c `inside` ('a','z')) || isDigit c || c == '-')
-
-    -- number  = DIGIT / ( LDIGIT 1*DIGIT )
-    -- DIGIT   = %x30 / LDIGIT       ; "0"-"9"
-    -- LDIGIT  = %x31-39             ; "1"-"9"
-    p'number = do
-      ldigit <- digit
-      if ldigit == '0'
-         then pure [ldigit]
-         else (ldigit:) <$> many digit
-
     -- assertionvalue = valueencoding
     -- ; The <valueencoding> rule is used to encode an <AssertionValue>
     -- ; from Section 4.1.6 of [RFC4511].
@@ -254,8 +215,40 @@ parsecFilter = p'filter
     -- UTF1SUBSET     = %x01-27 / %x2B-5B / %x5D-7F
     --                     ; UTF1SUBSET excludes 0x00 (NUL), LPAREN,
     --                     ; RPAREN, ASTERISK, and ESC.
-    p'assertionvalue :: Parser OCTET_STRING
-    p'assertionvalue = T.encodeUtf8 . T.pack <$> many (satisfy (`notElem` ['\x00','(',')','*','\\']))
+    p'assertionvalue = deescape <$> many ((Right <$> satisfy (`notElem` ['\x00','(',')','*','\\'])) <|> Left <$> p'escaped)
+
+    p'escaped = char '\\' *> ((\hi lo -> hi*16 + lo) <$> p'HEX <*> p'HEX)
+
+    p'HEX = (fromIntegral :: Int -> Word8) . go . fromEnum <$> hexDigit
+      where
+        go n
+          | n `inside` (0x30,0x39) = n - 0x30
+          | n `inside` (0x61,0x66) = n - (0x61 - 10)
+          | n `inside` (0x41,0x46) = n - (0x41 - 10)
+          | otherwise              = undefined
+
+
+----------------------------------------------------------------------------
+
+deescape :: [Either Word8 Char] -> OCTET_STRING
+deescape = mconcat . map go . groupEither
+  where
+    go (Left (x:|xs))  = BS.pack (x:xs)
+    go (Right (c:|cs)) = T.encodeUtf8 (T.pack (c:cs))
+
+groupEither :: [Either l r] -> [Either (NonEmpty l) (NonEmpty r)]
+groupEither = \case
+    [] -> []
+    Left  l : rest -> goLeft  (l:|[]) rest
+    Right r : rest -> goRight (r:|[]) rest
+  where
+    goLeft acc []               = Left (NE.reverse acc) : []
+    goLeft acc (Left  l : rest) =                         goLeft (l<|acc) rest
+    goLeft acc (Right r : rest) = Left (NE.reverse acc) : goRight (r:|[]) rest
+
+    goRight acc []               = Right (NE.reverse acc) : []
+    goRight acc (Left  l : rest) = Right (NE.reverse acc) : goLeft (l:|[]) rest
+    goRight acc (Right r : rest) =                          goRight (r<|acc) rest
 
 {-# INLINE some #-}
 some :: Stream s m t => ParsecT s u m a -> ParsecT s u m (NonEmpty a)
