@@ -18,6 +18,8 @@ description:
   .
   Moreover, this library also implements /String Representation of Search Filters/ as per <https://tools.ietf.org/html/rfc4515 RFC4515> (see "LDAPv3.StringRepr")
 
+extra-source-files: ChangeLog.md
+
 source-repository head
   type:     git
   location: https://github.com/hvr/LDAPv3.git
