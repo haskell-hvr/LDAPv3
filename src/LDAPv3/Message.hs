@@ -200,6 +200,7 @@ import           Common                      hiding (Option)
 import           Data.ASN1.Prim              (TagK (..))
 import           Data.Int.Subtypes
 import           LDAPv3.AttributeDescription
+import           LDAPv3.Message.Types
 import           LDAPv3.ResultCode
 
 import qualified Data.Binary                 as Bin
@@ -289,27 +290,6 @@ instance Bin.Binary LDAPMessage where
 instance ASN1 LDAPMessage
 instance ASN1Constructed LDAPMessage
 #endif
-
-{- | Message ID (<https://tools.ietf.org/html/rfc4511#section-4.1.1.1 RFC4511 Section 4.1.1.1>)
-
-> MessageID ::= INTEGER (0 ..  maxInt)
-
--}
-newtype MessageID = MessageID (UInt 0 MaxInt Int32)
-                  deriving (Generic,NFData,Ord,Bounded,Show,Eq)
-
-instance Newtype MessageID (UInt 0 MaxInt Int32)
-
-#if defined(HS_LDAPv3_ANNOTATED)
-deriving instance ASN1 MessageID
-#endif
-
-{- | LDAPv3 protocol ASN.1 constant as per <https://tools.ietf.org/html/rfc4511#section-4.1.1 RFC4511 Section 4.1.1>
-
-> maxInt INTEGER ::= 2147483647 -- (2^^31 - 1)
-
--}
-type MaxInt = 2147483647
 
 -- | @CHOICE@ type inlined in @LDAPMessage.protocolOp@  (<https://tools.ietf.org/html/rfc4511#section-4.1.1 RFC4511 Section 4.1.1>)
 --

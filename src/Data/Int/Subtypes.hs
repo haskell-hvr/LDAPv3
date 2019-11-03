@@ -23,7 +23,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Data.Int.Subtypes
-    ( UInt(..), toUInt, fromUInt, uintFromInteger
+    ( UInt(..), toUInt, toUInt', fromUInt, uintFromInteger
     , SInt(..), toSInt, fromSInt, sintFromInteger
 
     , UIntBounds

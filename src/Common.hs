@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-dodgy-imports #-}
+
 module Common (module Common, module X) where
 
 import           Control.Applicative   as X
@@ -19,7 +21,7 @@ import           Data.Text             as X (Text)
 import           Data.Text.Short       as X (ShortText)
 import           Data.Word             as X
 import           GHC.Generics          as X (Generic)
-import           GHC.TypeLits          as X
+import           GHC.TypeLits          as X hiding (Text)
 import           Numeric.Natural       as X (Natural)
 
 {-# INLINE rwhnf #-}

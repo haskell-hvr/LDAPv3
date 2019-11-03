@@ -82,6 +82,7 @@ library
       LDAPv3.AttributeDescription
       LDAPv3.SearchFilter
       LDAPv3.ResultCode
+      LDAPv3.Message.Types
       LDAPv3.Message.Annotated
 
 -------------------------------------------------------------------------------
